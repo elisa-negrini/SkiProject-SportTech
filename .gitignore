@@ -1,0 +1,7 @@
+# Python virtual environments
+venv/
+.env/
+env/
+*/Scripts/
+*/Lib/
+sport_tech_env/
