@@ -1,7 +1,15 @@
-# Python virtual environments
+# Virtual Environments Directories
 venv/
 .env/
 env/
+sport_tech_env/
+
+# Virtual Environment Components (Platform-independent)
 */Scripts/
 */Lib/
-sport_tech_env/
+
+# Specific File Types/Names to Ignore
+*.json
+*.jpg
+README.dataset.txt
+README.roboflow.txt
