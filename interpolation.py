@@ -2,7 +2,8 @@ import json
 import re
 import copy
 from pathlib import Path
-import os # Imported for the dynamic input loop
+import os
+import sys 
 
 # === DYNAMIC INPUT FOR JUMP NUMBER ===
 while True:
@@ -22,10 +23,14 @@ JUMP_ID = f"JP{jump_number:04d}" # Format as JP0006, JP0012, etc.
 # Defines the subdirectory using the dynamic JUMP_ID
 data_dir = Path("dataset") / "annotations" / JUMP_ID / "train" 
 
-input_json_path = data_dir / "annotations.json" # Assumed name for filtered input
-output_json_path = data_dir / "annotations_interpolated.coco.json"
+input_json_path = data_dir / f"annotations_jump{jump_number}.json" 
+output_json_path = data_dir / f"annotations_interpolated_jump{jump_number}.coco.json" # Nome aggiornato
 
-# === SUPPORT FUNCTIONS ===
+# Percorso del file con le bounding box manuali (si assume la struttura del tuo path)
+BOXES_FILE = Path(r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP") / JUMP_ID / r"MC\boxes.txt"
+
+
+# === SUPPORT FUNCTIONS (MODIFICHE QUI) ===
 
 def extract_frame_number(name: str) -> int:
     """
@@ -64,46 +69,110 @@ def interpolate_list(list_a, list_b, t: float):
         raise ValueError("Lists of different lengths, cannot interpolate")
     return [a + t * (b - a) for a, b in zip(list_a, list_b)]
 
-def interpolate_keypoints(kp_a, kp_b, t: float):
+def load_manual_bbox_data(file_path):
     """
-    Linear interpolation for COCO keypoints (x, y, v) triplets.
-    x and y -> linear interpolation, rounded to 3 decimal places.
-    v (visibility) -> keeps the visibility from frame A if equal to B,
-                      otherwise interpolates and rounds to the nearest integer.
+    Carica le coordinate delle bounding box dal file boxes.txt.
+    Ritorna una lista sequenziale di bbox [[x, y, w, h], ...].
     """
-    if len(kp_a) != len(kp_b):
-        raise ValueError("Keypoints of different lengths, cannot interpolate")
+    bbox_list = []
+    try:
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                clean_line = line.strip()
+                
+                if not clean_line or clean_line.startswith('['):
+                    continue
+                
+                try:
+                    coords = [float(c.strip()) for c in clean_line.split(',')]
+                    if len(coords) == 4:
+                        bbox_list.append([int(x) for x in coords])
+                except ValueError:
+                    continue 
+        return bbox_list
+    except FileNotFoundError:
+        print(f"❌ Errore: File delle bounding box manuali non trovato in {file_path}")
+        return None
 
-    new_kp = []
-    for i in range(0, len(kp_a), 3):
-        xa, ya, va = kp_a[i:i+3]
-        xb, yb, vb = kp_b[i:i+3]
+def normalize_keypoints(kp_data, bbox):
+    """
+    Normalizza le coordinate dei keypoint (x, y) rispetto alla bounding box [x_bbox, y_bbox, w, h].
+    Ritorna una lista di keypoint in coordinate relative (0 a 1).
+    """
+    x_bbox, y_bbox, w, h = bbox
+    kp_norm = []
+    for i in range(0, len(kp_data), 3):
+        x, y, v = kp_data[i:i+3]
+        
+        # Normalizzazione: (coordinata - punto_origine_bbox) / dimensione_bbox
+        # Evita divisione per zero nel caso di bbox degeneri, anche se raro.
+        x_norm = (x - x_bbox) / w if w > 0 else 0
+        y_norm = (y - y_bbox) / h if h > 0 else 0
+        
+        # Visibilità (v) non viene normalizzata
+        kp_norm.extend([x_norm, y_norm, v])
+    return kp_norm
 
-        x = xa + t * (xb - xa)
-        y = ya + t * (yb - ya)
+def denormalize_keypoints(kp_norm_data, bbox_new):
+    """
+    De-normalizza le coordinate dei keypoint relative (0 a 1) alla nuova bounding box target.
+    Ritorna una lista di keypoint in coordinate assolute (pixel).
+    """
+    x_bbox_new, y_bbox_new, w_new, h_new = bbox_new
+    kp_new = []
+    for i in range(0, len(kp_norm_data), 3):
+        x_norm, y_norm, v = kp_norm_data[i:i+3]
+        
+        # De-normalizzazione: coordinata_norm * dimensione_bbox_nuova + punto_origine_bbox_nuova
+        x = x_norm * w_new + x_bbox_new
+        y = y_norm * h_new + y_bbox_new
 
-        # Round to 3 decimal places (can be changed to integers if desired)
+        # Arrotondamento delle coordinate e gestione della visibilità
         x = round(x, 3)
         y = round(y, 3)
+        v = int(round(v)) # Assicura che la visibilità sia un intero
+        
+        kp_new.extend([x, y, v])
+    return kp_new
 
+def interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t: float):
+    """
+    Esegue l'interpolazione lineare su keypoint già normalizzati (x, y in 0-1, v in 0-2).
+    """
+    if len(kp_norm_a) != len(kp_norm_b):
+        raise ValueError("Normalized keypoints lists of different lengths, cannot interpolate")
+
+    new_kp_norm = []
+    for i in range(0, len(kp_norm_a), 3):
+        xa, ya, va = kp_norm_a[i:i+3]
+        xb, yb, vb = kp_norm_b[i:i+3]
+
+        x_norm = xa + t * (xb - xa)
+        y_norm = ya + t * (yb - ya)
+        
+        # Interpolazione della visibilità (v)
         if va == vb:
-            v = va
+            v_interp = va
         else:
-            v = int(round(va + t * (vb - va)))
+            v_interp = va + t * (vb - va)
 
-        new_kp.extend([x, y, v])
+        new_kp_norm.extend([x_norm, y_norm, v_interp])
 
-    return new_kp
+    return new_kp_norm
 
-
-# === LOAD ORIGINAL COCO FILE ===
+# === LOAD ORIGINAL COCO FILE & MANUAL BBOX DATA ===
 
 try:
     with open(input_json_path, "r") as f:
         coco_data = json.load(f)
 except FileNotFoundError:
     print(f"❌ Error: Input file not found at {input_json_path}. Please check the Jump ID and path.")
-    exit()
+    sys.exit() 
+
+manual_bbox_list = load_manual_bbox_data(BOXES_FILE)
+if manual_bbox_list is None:
+    sys.exit() 
 
 images = coco_data["images"]
 annotations = coco_data["annotations"]
@@ -117,26 +186,36 @@ for ann in annotations:
                          "the code assumes a single annotation per image.")
     ann_by_image_id[image_id] = ann
 
-# === BUILD FRAME INDEX FOR EACH IMAGE ===
+annotated_image_ids = set(ann_by_image_id.keys())
 
-frames_index = []  # list of (frame_number, image_dict)
+# === BUILD FRAME INDEX & FIND STARTING OFFSET (PER LA MAPPATURA BBOX) ===
+
+frames_index = []
+all_frame_nums = []
 
 for img in images:
-    # Prefer original name if it exists ('extra'->'name' field),
-    # otherwise use 'file_name'
     if "extra" in img and isinstance(img["extra"], dict) and "name" in img["extra"]:
         name_string = img["extra"]["name"]
     else:
         name_string = img["file_name"]
-
+    
     frame_number = extract_frame_number(name_string)
-    frames_index.append((frame_number, img))
+    all_frame_nums.append(frame_number)
+    
+    if img["id"] in annotated_image_ids:
+        frames_index.append((frame_number, img))
 
-# Sort by frame index
+min_frame_num = min(all_frame_nums) if all_frame_nums else 1
+
+# Mappa la lista sequenziale di bbox al numero di frame reale (OFFSET CORRETTO)
+manual_bbox_by_frame_num = {}
+for i, bbox in enumerate(manual_bbox_list):
+    frame_num = min_frame_num + i 
+    manual_bbox_by_frame_num[frame_num] = bbox
+
 frames_index.sort(key=lambda x: x[0])
 
 # Name template generation
-# Use the first example found
 example_extra_name = None
 example_file_name = None
 
@@ -153,7 +232,7 @@ for _, img in frames_index:
 make_extra_name = build_name_template(example_extra_name) if example_extra_name else None
 make_file_name = build_name_template(example_file_name) if example_file_name else None
 
-# === PREPARE NEW IDs FOR IMAGES AND ANNOTATIONS ===
+# === PREPARE NEW IDs ===
 
 max_image_id = max(img["id"] for img in images) if images else 0
 max_ann_id = max(ann["id"] for ann in annotations) if annotations else 0
@@ -164,54 +243,63 @@ next_ann_id = max_ann_id + 1
 new_images = []
 new_annotations = []
 
-# === LOOP OVER EXISTING FRAME PAIRS TO INTERPOLATE MISSING ONES ===
+# === LOOP OVER EXISTING FRAME PAIRS TO INTERPOLATE MISSING ONES (LOGICA BBOX OBBLIGATA) ===
 
-# Iterate over pairs of existing frames (A, B)
 for (frame_a_num, img_a), (frame_b_num, img_b) in zip(frames_index[:-1], frames_index[1:]):
-    # If there are no "gaps" between frame_a and frame_b, skip
     if frame_b_num <= frame_a_num + 1:
         continue
 
     ann_a = ann_by_image_id[img_a["id"]]
     ann_b = ann_by_image_id[img_b["id"]]
+    
+    # Bbox di origine/destinazione per normalizzazione
+    bbox_a = ann_a["bbox"]
+    bbox_b = ann_b["bbox"]
+    
+    # Normalizza i keypoint originali una sola volta per coppia di frame
+    kp_norm_a = interpolate_normalized_keypoints(normalize_keypoints(ann_a["keypoints"], bbox_a), normalize_keypoints(ann_a["keypoints"], bbox_a), 0.0) # t=0, solo conversione
+    kp_norm_b = interpolate_normalized_keypoints(normalize_keypoints(ann_b["keypoints"], bbox_b), normalize_keypoints(ann_b["keypoints"], bbox_b), 0.0) # t=0, solo conversione
 
     # For all intermediate frames
     for current_frame_num in range(frame_a_num + 1, frame_b_num):
-        # Calculate interpolation ratio (t)
-        t = (current_frame_num - frame_a_num) / (frame_b_num - frame_a_num)  # 0 < t < 1
+        
+        t = (current_frame_num - frame_a_num) / (frame_b_num - frame_a_num)
 
-        # --- New Image creation ---
+        # --- New Image creation (Invariato) ---
         new_img = copy.deepcopy(img_a)
         new_img["id"] = next_image_id
         next_image_id += 1
-
-        if make_file_name is not None:
-            new_img["file_name"] = make_file_name(current_frame_num)
-
+        if make_file_name is not None: new_img["file_name"] = make_file_name(current_frame_num)
         if make_extra_name is not None:
-            if "extra" not in new_img or not isinstance(new_img["extra"], dict):
-                new_img["extra"] = {}
+            if "extra" not in new_img or not isinstance(new_img["extra"], dict): new_img["extra"] = {}
             new_img["extra"]["name"] = make_extra_name(current_frame_num)
-
         new_images.append(new_img)
 
-        # --- New Annotation creation ---
+        # --- New Annotation creation (Invariato) ---
         new_ann = copy.deepcopy(ann_a)
         new_ann["id"] = next_ann_id
         next_ann_id += 1
         new_ann["image_id"] = new_img["id"]
 
-        # bbox: [x, y, w, h]
-        bbox_a = ann_a["bbox"]
-        bbox_b = ann_b["bbox"]
-        new_bbox = interpolate_list(bbox_a, bbox_b, t)
-        new_ann["bbox"] = new_bbox
+        # 2. BBOX: USA IL DATO MANUALE (TARGET BBOX)
+        if current_frame_num in manual_bbox_by_frame_num:
+            bbox_manual_target = manual_bbox_by_frame_num[current_frame_num]
+            new_ann["bbox"] = bbox_manual_target
+        else:
+            # Fallback: INTERPOLAZIONE BBOX STANDARD (se il dato manuale manca)
+            bbox_manual_target = interpolate_list(bbox_a, bbox_b, t)
+            new_ann["bbox"] = bbox_manual_target
+            print(f"⚠️ Avviso: Bbox manuale non trovata per frame {current_frame_num}. Usata interpolazione Bbox standard.")
 
-        # keypoints
+
+        # 3. KEYPOINTS: INTERPOLA IN SPAZIO NORMALIZZATO E DENORMALIZZA CON TARGET BBOX
         if "keypoints" in ann_a and "keypoints" in ann_b:
-            kp_a = ann_a["keypoints"]
-            kp_b = ann_b["keypoints"]
-            new_kp = interpolate_keypoints(kp_a, kp_b, t)
+            
+            # Interpolazione dei keypoint nello spazio 0-1
+            kp_interp_norm = interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t)
+            
+            # Denormalizzazione nello spazio pixel usando la BBOX MANUALE
+            new_kp = denormalize_keypoints(kp_interp_norm, bbox_manual_target)
             new_ann["keypoints"] = new_kp
 
         new_annotations.append(new_ann)
@@ -221,7 +309,6 @@ for (frame_a_num, img_a), (frame_b_num, img_b) in zip(frames_index[:-1], frames_
 coco_data["images"].extend(new_images)
 coco_data["annotations"].extend(new_annotations)
 
-# Ensure output directory exists before writing
 if not os.path.exists(output_json_path.parent):
     os.makedirs(output_json_path.parent)
 

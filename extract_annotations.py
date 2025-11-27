@@ -17,15 +17,15 @@ JUMP_ID = f"JP{jump_number:04d}" # Format as JP0006, JP0012, etc.
 
 # --- CONFIGURATION (Dynamic) ---
 # The root path of the folder containing 'train' (where the JSON is located)
-DATASET_ROOT = './full_dataset/' 
+DATASET_ROOT = './raw_annotations/' 
 TAG_TO_SEARCH = f"jump{jump_number}" # Dynamic tag based on user input (e.g., jump6)
-NEW_ANN_FILE_NAME = 'annotations_filtered.json' # Renamed output file slightly for clarity
+NEW_ANN_FILE_NAME = f"annotations_jump{jump_number}.json" # Renamed output file slightly for clarity
 
 # Path to the full COCO JSON file
 SOURCE_ANN_PATH = os.path.join(DATASET_ROOT, 'train', '_annotations.coco.json')
 
 # 2) Output path updated to the visualization folder
-TARGET_DIR = os.path.join('datasets', 'annotations', JUMP_ID, 'visualizations')
+TARGET_DIR = os.path.join('dataset', 'annotations', JUMP_ID, 'train')
 TARGET_ANN_PATH = os.path.join(TARGET_DIR, NEW_ANN_FILE_NAME)
 # ----------------------
 

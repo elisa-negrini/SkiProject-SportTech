@@ -21,7 +21,7 @@ while True:
 JUMP_ID = f"JP{jump_number:04d}" # Format as JP0006, JP0012, etc.
 
 # --- FILE PATHS (Dynamic) ---
-coco_path = f"dataset/annotations/{JUMP_ID}/train/annotations_interpolated.coco.json"  # Interpolated COCO file
+coco_path = f"dataset/annotations/{JUMP_ID}/train/annotations_interpolated_jump{jump_number}.coco.json"  # Interpolated COCO file
 images_folder = f"dataset/frames/{JUMP_ID}"  # Folder with all frames
 output_folder = f"dataset/annotations/{JUMP_ID}/visualizations"  # Where to save visualizations
 
