@@ -5,20 +5,25 @@ from typing import List, Set
 
 # --- CONFIGURATION: ONLY MODIFY THESE BASE PATHS AND THE NUMBER RANGE ---
 
-# Main path of the dataset up to SkiTB/JP/
-# ALL JPXXXX folders are located here.
-BASE_DATASET_PATH = r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP"
+# 1. Path for SOURCE FRAMES. This should be the directory CONTAINING the JPXXXX folders.
+# E.g., C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiProject-SportTech\dataset\frames
+DATASET_ROOT_PATH = r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiProject-SportTech\dataset\frames" # <-- Assumiamo questa sia la radice che contiene JP0011, JP0012, etc.
 
-# The main folder that will contain all results (e.g., JP0001, JP0002, ...)
-# It will be created inside BASE_DATASET_PATH.
-DESTINATION_FOLDER_NAME = "filtered_frames" 
+# 2. Path for METADATA (cameras.txt is found relative to this path)
+METADATA_ROOT_PATH = r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP"
+
+# The main folder name that will contain all results. 
+# It will be created INSIDE each JPXXXX folder.
+DESTINATION_FOLDER_NAME = "to be added" 
 
 # Selection interval: 1 file every STEP_SIZE
 STEP_SIZE = 10
 
 # Range of JPXXXX folders to process (from 1 to 100)
-START_NUM = 8
-END_NUM = 20
+START_NUM = 24 # Impostato a 12 come nel tuo esempio, ma puoi cambiarlo
+END_NUM = 24
+
+# -----------------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------------
 
@@ -128,38 +133,34 @@ def select_and_copy_files(source_directory: str, destination_directory: str,
     print(f"      - Regular sampling (1 every {step_size}): {files_copied - transition_frames} files")
     print(f"      - Camera transitions: {transition_frames} additional files")
 
-
 # --- Main Logic ---
 def run_dataset_selection():
     
-    # 1. Define root paths
-    parent_destination_path = os.path.join(BASE_DATASET_PATH, DESTINATION_FOLDER_NAME)
+    # Non serve più parent_destination_path qui, la destinazione è per-folder.
     
-    # 2. Generate the list of folders to process
+    # 1. Generate the list of folders to process
     folders_to_process = generate_folder_names(START_NUM, END_NUM)
     
     print(f"*** Starting processing of {len(folders_to_process)} folders ***")
-    print(f"Parent Destination Directory: {parent_destination_path}")
+    print(f"Frame Root Directory: {DATASET_ROOT_PATH}")
+    print(f"Metadata Root Directory: {METADATA_ROOT_PATH}")
+    print(f"Destination folder name: **{DESTINATION_FOLDER_NAME}** (created inside each JPXXXX folder)") # <--- AGGIORNATO MESSAGGIO
     print(f"Selection Step: 1 every {STEP_SIZE}")
     print(f"Camera transitions: Always included")
 
-    # Create the parent destination folder if it doesn't exist
-    if not os.path.exists(parent_destination_path):
-        os.makedirs(parent_destination_path)
-        print(f"✅ Created parent destination directory: {DESTINATION_FOLDER_NAME}")
 
-    # 3. Iteration and Processing
+    # 2. Iteration and Processing
     for folder_name in folders_to_process:
         print(f"\n--- Processing folder: **{folder_name}** ---")
         
-        # Construct Source path: .../JP/JPXXXX/frames
-        source = os.path.join(BASE_DATASET_PATH, folder_name, "frames")
+        # Construct Source path (Frames): DATASET_ROOT_PATH/JPXXXX
+        source = os.path.join(DATASET_ROOT_PATH, folder_name)
         
-        # Construct cameras.txt path: .../JP/JPXXXX/cameras.txt
-        cameras_file = os.path.join(BASE_DATASET_PATH, folder_name, "MC", "cameras.txt")
+        # Construct cameras.txt path: METADATA_ROOT_PATH/JPXXXX/MC/cameras.txt
+        cameras_file = os.path.join(METADATA_ROOT_PATH, folder_name, "MC", "cameras.txt")
         
-        # Construct Destination path: .../JP/filtered_frames/JPXXXX
-        destination = os.path.join(parent_destination_path, folder_name)
+        # Construct Destination path: DATASET_ROOT_PATH/JPXXXX/to be added <--- MODIFICA CHIAVE QUI
+        destination = os.path.join(source, DESTINATION_FOLDER_NAME)
 
         # Safety check: verify that the source folder exists
         if not os.path.isdir(source):
@@ -175,6 +176,6 @@ def run_dataset_selection():
     print("\n*** Processing complete! ✨ ***")
 
 # --- EXECUTION ---
-# Make sure you have verified BASE_DATASET_PATH, DESTINATION_FOLDER_NAME, and the numeric ranges.
+# Make sure you have verified all configuration paths and the numeric ranges.
 if __name__ == "__main__":
     run_dataset_selection()

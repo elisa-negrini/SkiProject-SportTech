@@ -4,6 +4,7 @@ import copy
 from pathlib import Path
 import os
 import sys 
+import glob
 
 # === DYNAMIC INPUT FOR JUMP NUMBER ===
 while True:
@@ -27,8 +28,8 @@ input_json_path = data_dir / f"annotations_jump{jump_number}.json"
 output_json_path = data_dir / f"annotations_interpolated_jump{jump_number}.coco.json" # Nome aggiornato
 
 # Percorso del file con le bounding box manuali (si assume la struttura del tuo path)
-BOXES_FILE = Path(r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP") / JUMP_ID / r"MC\boxes.txt"
-
+#BOXES_FILE = Path(r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP") / JUMP_ID / r"MC\boxes.txt"
+BOXES_FILE = Path(r"dataset\frames")/ JUMP_ID / r"boxes_filtered.txt"
 
 # === SUPPORT FUNCTIONS (MODIFICHE QUI) ===
 
@@ -161,6 +162,34 @@ def interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t: float):
 
     return new_kp_norm
 
+def get_indices_from_dir(directory):
+    """ Ottiene i numeri di frame da una directory usando glob e extract_frame_number. """
+    indices = set()
+ 
+    if not os.path.exists(directory):
+        print(f"⚠️ Directory non trovata: {directory}")
+        return indices
+
+    try:
+        # Usa il pattern più probabile o cerca entrambi
+        #pattern_png = os.path.join(directory, "????*.png")
+        pattern_jpg = os.path.join(directory, "*.jpg")
+        
+        file_paths = glob.glob(pattern_jpg)
+            
+        for file_path in file_paths:
+            nome_file_completo = os.path.basename(file_path)
+            try:
+                frame_number = extract_frame_number(nome_file_completo)
+                indices.add(frame_number)
+            except ValueError:
+                # Ignora file non conformi
+                continue
+        return indices
+    except Exception as e:
+        print(f"⚠️ Avviso durante il recupero degli indici da {directory}: {e}")
+        return indices
+    
 # === LOAD ORIGINAL COCO FILE & MANUAL BBOX DATA ===
 
 try:
@@ -207,13 +236,99 @@ for img in images:
 
 min_frame_num = min(all_frame_nums) if all_frame_nums else 1
 
-# Mappa la lista sequenziale di bbox al numero di frame reale (OFFSET CORRETTO)
+# Ricostruisci il percorso base per le directory (necessario per glob)
+# Assumendo che BOXES_FILE sia definito correttamente come Path(r"dataset\frames")/ JUMP_ID / ...
+BASE_PATH = BOXES_FILE.parent
+dir_principale = BASE_PATH
+dir_removed = BASE_PATH / 'removed'
+dir_occluded = BASE_PATH / 'occluded'
+
+# Debug: stampa i percorsi per verificare
+print(f"🔍 Debug - Percorsi cercati:")
+print(f"   Base: {dir_principale}")
+print(f"   Removed: {dir_removed}")
+print(f"   Occluded: {dir_occluded}")
+print(f"   Esiste dir_principale? {dir_principale.exists()}")
+
+# 1. Calcola tutti gli insiemi di indici
+indici_principale = get_indices_from_dir(dir_principale)
+indici_removed = get_indices_from_dir(dir_removed)
+indici_occluded = get_indices_from_dir(dir_occluded)
+
+tutti_gli_indici_set = indici_principale.union(indici_removed).union(indici_occluded)
+
+# 2. Calcola l'insieme dei frame MANTENUTI (quelli che sono in 'principale' O che sono nel totale MA NON sono stati rimossi)
+# Poiché boxes_filtered.txt contiene righe solo per i frame che NON sono stati rimossi.
+# I frame mantenuti sono semplicemente tutti gli indici totali che NON sono stati scartati.
+indici_mantenuti_set = tutti_gli_indici_set.difference(tutti_gli_indici_set.difference(indici_principale))
+# Tecnicamente questo è equivalente a indici_principale, ma è più robusto se i file JSON
+# contengono solo un sottoinsieme degli indici principali. Manteniamo la logica:
+# I frame mantenuti corrispondono ai frame che hanno la loro bbox in manual_bbox_list.
+# E una bbox è rimasta se NON è stata filtrata. I frame filtrati sono quelli in (removed U occluded) - principale.
+# Quelli mantenuti sono quelli che NON sono stati filtrati.
+indici_rimossi = tutti_gli_indici_set.difference(indici_principale)
+indici_mantenuti_set = tutti_gli_indici_set.difference(indici_rimossi) # Questo è l'insieme corretto
+
+# 3. Crea la lista ordinata di numeri di frame mantenuti
+KEPT_FRAME_NUMBERS_IN_ORDER = sorted(list(indici_mantenuti_set), key=int)
+
+# --- VERIFICA DI SICUREZZA ---
+if len(KEPT_FRAME_NUMBERS_IN_ORDER) != len(manual_bbox_list):
+    print("❌ ERRORE CRITICO DI SINCRO! Lunghezza della lista di frame mantenuti non corrisponde alla lista di bbox filtrate.")
+    print(f"   - Frame Mantenuti (dalla logica file system): {len(KEPT_FRAME_NUMBERS_IN_ORDER)}")
+    print(f"   - BBox Filtrate (dal boxes_filtered.txt): {len(manual_bbox_list)}")
+    print("   -> Controlla l'estensione dei file immagine o il processo di filtraggio.")
+    sys.exit()
+
+# --- BLOCCO DI MAPPATURA CORRETTO ---
+# Mappa la lista sequenziale di bbox alla lista corretta e non contigua dei numeri di frame mantenuti
 manual_bbox_by_frame_num = {}
 for i, bbox in enumerate(manual_bbox_list):
-    frame_num = min_frame_num + i 
+    # i è l'indice sequenziale (0, 1, 2, ...) che corrisponde alla riga in boxes_filtered.txt
+    # KEPT_FRAME_NUMBERS_IN_ORDER[i] è il numero di frame reale (es. 00052)
+    frame_num = KEPT_FRAME_NUMBERS_IN_ORDER[i]
     manual_bbox_by_frame_num[frame_num] = bbox
+    
+# Trova il frame minimo reale da usare come riferimento per il template (min_frame_num non è più usato per la mappatura, ma potrebbe servire altrove)
+min_frame_num = min(KEPT_FRAME_NUMBERS_IN_ORDER) if KEPT_FRAME_NUMBERS_IN_ORDER else 1
+
+# --- COSTRUZIONE DELL'INDICE FRAME (Il resto del codice rimane quasi invariato) ---
+
+images = coco_data["images"]
+annotations = coco_data["annotations"]
+
+# Map image_id -> annotation (assumes ONE annotation per image)
+ann_by_image_id = {}
+for ann in annotations:
+    image_id = ann["image_id"]
+    if image_id in ann_by_image_id:
+        raise ValueError(f"More than one annotation for image_id={image_id}, "
+                         "the code assumes a single annotation per image.")
+    ann_by_image_id[image_id] = ann
+
+annotated_image_ids = set(ann_by_image_id.keys())
+
+# === BUILD FRAME INDEX & NAME TEMPLATE ===
+frames_index = []
+
+for img in images:
+    if "extra" in img and isinstance(img["extra"], dict) and "name" in img["extra"]:
+        name_string = img["extra"]["name"]
+    else:
+        name_string = img["file_name"]
+    
+    frame_number = extract_frame_number(name_string)
+    
+    if img["id"] in annotated_image_ids:
+        frames_index.append((frame_number, img))
+
+# Il min_frame_num è stato calcolato prima, qui non è più necessario ricalcolarlo.
 
 frames_index.sort(key=lambda x: x[0])
+
+# Name template generation
+example_extra_name = None
+example_file_name = None
 
 # Name template generation
 example_extra_name = None
