@@ -14,3 +14,7 @@ sport_tech_env/
 *.mp4
 README.dataset.txt
 README.roboflow.txt
+
+# Boxes files
+boxes.txt
+boxes_filtered.txt

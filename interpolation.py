@@ -25,13 +25,13 @@ JUMP_ID = f"JP{jump_number:04d}" # Format as JP0006, JP0012, etc.
 data_dir = Path("dataset") / "annotations" / JUMP_ID / "train" 
 
 input_json_path = data_dir / f"annotations_jump{jump_number}.json" 
-output_json_path = data_dir / f"annotations_interpolated_jump{jump_number}.coco.json" # Nome aggiornato
+output_json_path = data_dir / f"annotations_interpolated_jump{jump_number}.coco.json" # Updated name
 
-# Percorso del file con le bounding box manuali (si assume la struttura del tuo path)
+# Path to the file with manual bounding boxes (assuming your path structure)
 #BOXES_FILE = Path(r"C:\Users\utente\Desktop\UNITN secondo anno\Sport Tech\ski project\SkiTB dataset\SkiTB\JP") / JUMP_ID / r"MC\boxes.txt"
 BOXES_FILE = Path(r"dataset\frames")/ JUMP_ID / r"boxes_filtered.txt"
 
-# === SUPPORT FUNCTIONS (MODIFICHE QUI) ===
+# === SUPPORT FUNCTIONS (MODIFICATIONS HERE) ===
 
 def extract_frame_number(name: str) -> int:
     """
@@ -72,8 +72,8 @@ def interpolate_list(list_a, list_b, t: float):
 
 def load_manual_bbox_data(file_path):
     """
-    Carica le coordinate delle bounding box dal file boxes.txt.
-    Ritorna una lista sequenziale di bbox [[x, y, w, h], ...].
+    Loads bounding box coordinates from the boxes.txt file.
+    Returns a sequential list of bboxes [[x, y, w, h], ...].
     """
     bbox_list = []
     try:
@@ -88,58 +88,59 @@ def load_manual_bbox_data(file_path):
                 try:
                     coords = [float(c.strip()) for c in clean_line.split(',')]
                     if len(coords) == 4:
+                        # Convert coordinates to integers (as expected for COCO BBoxes)
                         bbox_list.append([int(x) for x in coords])
                 except ValueError:
                     continue 
         return bbox_list
     except FileNotFoundError:
-        print(f"❌ Errore: File delle bounding box manuali non trovato in {file_path}")
+        print(f"❌ Error: Manual bounding box file not found at {file_path}")
         return None
 
 def normalize_keypoints(kp_data, bbox):
     """
-    Normalizza le coordinate dei keypoint (x, y) rispetto alla bounding box [x_bbox, y_bbox, w, h].
-    Ritorna una lista di keypoint in coordinate relative (0 a 1).
+    Normalizes keypoint coordinates (x, y) with respect to the bounding box [x_bbox, y_bbox, w, h].
+    Returns a list of keypoints in relative coordinates (0 to 1).
     """
     x_bbox, y_bbox, w, h = bbox
     kp_norm = []
     for i in range(0, len(kp_data), 3):
         x, y, v = kp_data[i:i+3]
         
-        # Normalizzazione: (coordinata - punto_origine_bbox) / dimensione_bbox
-        # Evita divisione per zero nel caso di bbox degeneri, anche se raro.
+        # Normalization: (coordinate - bbox_origin_point) / bbox_dimension
+        # Avoid division by zero in case of degenerate bboxes, though rare.
         x_norm = (x - x_bbox) / w if w > 0 else 0
         y_norm = (y - y_bbox) / h if h > 0 else 0
         
-        # Visibilità (v) non viene normalizzata
+        # Visibility (v) is not normalized
         kp_norm.extend([x_norm, y_norm, v])
     return kp_norm
 
 def denormalize_keypoints(kp_norm_data, bbox_new):
     """
-    De-normalizza le coordinate dei keypoint relative (0 a 1) alla nuova bounding box target.
-    Ritorna una lista di keypoint in coordinate assolute (pixel).
+    De-normalizes relative keypoint coordinates (0 to 1) to the new target bounding box.
+    Returns a list of keypoints in absolute coordinates (pixels).
     """
     x_bbox_new, y_bbox_new, w_new, h_new = bbox_new
     kp_new = []
     for i in range(0, len(kp_norm_data), 3):
         x_norm, y_norm, v = kp_norm_data[i:i+3]
         
-        # De-normalizzazione: coordinata_norm * dimensione_bbox_nuova + punto_origine_bbox_nuova
+        # De-normalization: normalized_coordinate * new_bbox_dimension + new_bbox_origin_point
         x = x_norm * w_new + x_bbox_new
         y = y_norm * h_new + y_bbox_new
 
-        # Arrotondamento delle coordinate e gestione della visibilità
+        # Rounding coordinates and handling visibility
         x = round(x, 3)
         y = round(y, 3)
-        v = int(round(v)) # Assicura che la visibilità sia un intero
+        v = int(round(v)) # Ensures visibility is an integer
         
         kp_new.extend([x, y, v])
     return kp_new
 
 def interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t: float):
     """
-    Esegue l'interpolazione lineare su keypoint già normalizzati (x, y in 0-1, v in 0-2).
+    Performs linear interpolation on already normalized keypoints (x, y in 0-1, v in 0-2).
     """
     if len(kp_norm_a) != len(kp_norm_b):
         raise ValueError("Normalized keypoints lists of different lengths, cannot interpolate")
@@ -152,7 +153,7 @@ def interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t: float):
         x_norm = xa + t * (xb - xa)
         y_norm = ya + t * (yb - ya)
         
-        # Interpolazione della visibilità (v)
+        # Interpolate visibility (v)
         if va == vb:
             v_interp = va
         else:
@@ -163,31 +164,31 @@ def interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t: float):
     return new_kp_norm
 
 def get_indices_from_dir(directory):
-    """ Ottiene i numeri di frame da una directory usando glob e extract_frame_number. """
+    """ Retrieves frame numbers from a directory using glob and extract_frame_number. """
     indices = set()
  
     if not os.path.exists(directory):
-        print(f"⚠️ Directory non trovata: {directory}")
+        print(f"⚠️ Directory not found: {directory}")
         return indices
 
     try:
-        # Usa il pattern più probabile o cerca entrambi
+        # Use the most probable pattern or search for both
         #pattern_png = os.path.join(directory, "????*.png")
         pattern_jpg = os.path.join(directory, "*.jpg")
         
         file_paths = glob.glob(pattern_jpg)
             
         for file_path in file_paths:
-            nome_file_completo = os.path.basename(file_path)
+            full_file_name = os.path.basename(file_path)
             try:
-                frame_number = extract_frame_number(nome_file_completo)
+                frame_number = extract_frame_number(full_file_name)
                 indices.add(frame_number)
             except ValueError:
-                # Ignora file non conformi
+                # Ignore non-conforming files
                 continue
         return indices
     except Exception as e:
-        print(f"⚠️ Avviso durante il recupero degli indici da {directory}: {e}")
+        print(f"⚠️ Warning while retrieving indices from {directory}: {e}")
         return indices
     
 # === LOAD ORIGINAL COCO FILE & MANUAL BBOX DATA ===
@@ -217,7 +218,7 @@ for ann in annotations:
 
 annotated_image_ids = set(ann_by_image_id.keys())
 
-# === BUILD FRAME INDEX & FIND STARTING OFFSET (PER LA MAPPATURA BBOX) ===
+# === BUILD FRAME INDEX & FIND STARTING OFFSET (FOR BBOX MAPPING) ===
 
 frames_index = []
 all_frame_nums = []
@@ -236,63 +237,57 @@ for img in images:
 
 min_frame_num = min(all_frame_nums) if all_frame_nums else 1
 
-# Ricostruisci il percorso base per le directory (necessario per glob)
-# Assumendo che BOXES_FILE sia definito correttamente come Path(r"dataset\frames")/ JUMP_ID / ...
+# Rebuild the base path for directories (necessary for glob)
+# Assuming BOXES_FILE is correctly defined as Path(r"dataset\frames")/ JUMP_ID / ...
 BASE_PATH = BOXES_FILE.parent
 dir_principale = BASE_PATH
 dir_removed = BASE_PATH / 'removed'
 dir_occluded = BASE_PATH / 'occluded'
 
-# Debug: stampa i percorsi per verificare
-print(f"🔍 Debug - Percorsi cercati:")
+# Debug: print paths to verify
+print(f"🔍 Debug - Paths searched:")
 print(f"   Base: {dir_principale}")
 print(f"   Removed: {dir_removed}")
 print(f"   Occluded: {dir_occluded}")
-print(f"   Esiste dir_principale? {dir_principale.exists()}")
+print(f"   Does dir_principale exist? {dir_principale.exists()}")
 
-# 1. Calcola tutti gli insiemi di indici
+# 1. Calculate all index sets
 indici_principale = get_indices_from_dir(dir_principale)
 indici_removed = get_indices_from_dir(dir_removed)
 indici_occluded = get_indices_from_dir(dir_occluded)
 
 tutti_gli_indici_set = indici_principale.union(indici_removed).union(indici_occluded)
 
-# 2. Calcola l'insieme dei frame MANTENUTI (quelli che sono in 'principale' O che sono nel totale MA NON sono stati rimossi)
-# Poiché boxes_filtered.txt contiene righe solo per i frame che NON sono stati rimossi.
-# I frame mantenuti sono semplicemente tutti gli indici totali che NON sono stati scartati.
-indici_mantenuti_set = tutti_gli_indici_set.difference(tutti_gli_indici_set.difference(indici_principale))
-# Tecnicamente questo è equivalente a indici_principale, ma è più robusto se i file JSON
-# contengono solo un sottoinsieme degli indici principali. Manteniamo la logica:
-# I frame mantenuti corrispondono ai frame che hanno la loro bbox in manual_bbox_list.
-# E una bbox è rimasta se NON è stata filtrata. I frame filtrati sono quelli in (removed U occluded) - principale.
-# Quelli mantenuti sono quelli che NON sono stati filtrati.
-indici_rimossi = tutti_gli_indici_set.difference(indici_principale)
-indici_mantenuti_set = tutti_gli_indici_set.difference(indici_rimossi) # Questo è l'insieme corretto
+# 2. Calculate the set of KEPT frames (those that are in 'principale' OR that are in total BUT have NOT been removed)
+# Since boxes_filtered.txt contains lines only for frames that have NOT been removed.
+# The kept frames are simply all the total indices that were NOT discarded.
+indici_removed = tutti_gli_indici_set.difference(indici_principale)
+indici_mantenuti_set = tutti_gli_indici_set.difference(indici_removed) # This is the correct set
 
-# 3. Crea la lista ordinata di numeri di frame mantenuti
+# 3. Create the sorted list of kept frame numbers
 KEPT_FRAME_NUMBERS_IN_ORDER = sorted(list(indici_mantenuti_set), key=int)
 
-# --- VERIFICA DI SICUREZZA ---
+# --- SAFETY CHECK ---
 if len(KEPT_FRAME_NUMBERS_IN_ORDER) != len(manual_bbox_list):
-    print("❌ ERRORE CRITICO DI SINCRO! Lunghezza della lista di frame mantenuti non corrisponde alla lista di bbox filtrate.")
-    print(f"   - Frame Mantenuti (dalla logica file system): {len(KEPT_FRAME_NUMBERS_IN_ORDER)}")
-    print(f"   - BBox Filtrate (dal boxes_filtered.txt): {len(manual_bbox_list)}")
-    print("   -> Controlla l'estensione dei file immagine o il processo di filtraggio.")
+    print("❌ CRITICAL SYNC ERROR! Length of kept frame list does not match length of filtered bbox list.")
+    print(f"   - Kept Frames (from file system logic): {len(KEPT_FRAME_NUMBERS_IN_ORDER)}")
+    print(f"   - Filtered BBoxes (from boxes_filtered.txt): {len(manual_bbox_list)}")
+    print("   -> Check the image file extension or the filtering process.")
     sys.exit()
 
-# --- BLOCCO DI MAPPATURA CORRETTO ---
-# Mappa la lista sequenziale di bbox alla lista corretta e non contigua dei numeri di frame mantenuti
+# --- CORRECT MAPPING BLOCK ---
+# Map the sequential bbox list to the correct, non-contiguous list of kept frame numbers
 manual_bbox_by_frame_num = {}
 for i, bbox in enumerate(manual_bbox_list):
-    # i è l'indice sequenziale (0, 1, 2, ...) che corrisponde alla riga in boxes_filtered.txt
-    # KEPT_FRAME_NUMBERS_IN_ORDER[i] è il numero di frame reale (es. 00052)
+    # i is the sequential index (0, 1, 2, ...) which corresponds to the line in boxes_filtered.txt
+    # KEPT_FRAME_NUMBERS_IN_ORDER[i] is the actual frame number (e.g., 52)
     frame_num = KEPT_FRAME_NUMBERS_IN_ORDER[i]
     manual_bbox_by_frame_num[frame_num] = bbox
     
-# Trova il frame minimo reale da usare come riferimento per il template (min_frame_num non è più usato per la mappatura, ma potrebbe servire altrove)
+# Find the actual minimum frame number to use as a template reference (min_frame_num is no longer used for mapping, but might be needed elsewhere)
 min_frame_num = min(KEPT_FRAME_NUMBERS_IN_ORDER) if KEPT_FRAME_NUMBERS_IN_ORDER else 1
 
-# --- COSTRUZIONE DELL'INDICE FRAME (Il resto del codice rimane quasi invariato) ---
+# --- FRAME INDEX CONSTRUCTION (The rest of the code remains almost unchanged) ---
 
 images = coco_data["images"]
 annotations = coco_data["annotations"]
@@ -322,7 +317,7 @@ for img in images:
     if img["id"] in annotated_image_ids:
         frames_index.append((frame_number, img))
 
-# Il min_frame_num è stato calcolato prima, qui non è più necessario ricalcolarlo.
+# min_frame_num was calculated earlier, no need to recalculate here.
 
 frames_index.sort(key=lambda x: x[0])
 
@@ -358,7 +353,7 @@ next_ann_id = max_ann_id + 1
 new_images = []
 new_annotations = []
 
-# === LOOP OVER EXISTING FRAME PAIRS TO INTERPOLATE MISSING ONES (LOGICA BBOX OBBLIGATA) ===
+# === LOOP OVER EXISTING FRAME PAIRS TO INTERPOLATE MISSING ONES (MANDATORY BBOX LOGIC) ===
 
 for (frame_a_num, img_a), (frame_b_num, img_b) in zip(frames_index[:-1], frames_index[1:]):
     if frame_b_num <= frame_a_num + 1:
@@ -367,20 +362,20 @@ for (frame_a_num, img_a), (frame_b_num, img_b) in zip(frames_index[:-1], frames_
     ann_a = ann_by_image_id[img_a["id"]]
     ann_b = ann_by_image_id[img_b["id"]]
     
-    # Bbox di origine/destinazione per normalizzazione
+    # Source/destination Bbox for normalization
     bbox_a = ann_a["bbox"]
     bbox_b = ann_b["bbox"]
     
-    # Normalizza i keypoint originali una sola volta per coppia di frame
-    kp_norm_a = interpolate_normalized_keypoints(normalize_keypoints(ann_a["keypoints"], bbox_a), normalize_keypoints(ann_a["keypoints"], bbox_a), 0.0) # t=0, solo conversione
-    kp_norm_b = interpolate_normalized_keypoints(normalize_keypoints(ann_b["keypoints"], bbox_b), normalize_keypoints(ann_b["keypoints"], bbox_b), 0.0) # t=0, solo conversione
+    # Normalize original keypoints only once per frame pair
+    kp_norm_a = interpolate_normalized_keypoints(normalize_keypoints(ann_a["keypoints"], bbox_a), normalize_keypoints(ann_a["keypoints"], bbox_a), 0.0) # t=0, conversion only
+    kp_norm_b = interpolate_normalized_keypoints(normalize_keypoints(ann_b["keypoints"], bbox_b), normalize_keypoints(ann_b["keypoints"], bbox_b), 0.0) # t=0, conversion only
 
     # For all intermediate frames
     for current_frame_num in range(frame_a_num + 1, frame_b_num):
         
         t = (current_frame_num - frame_a_num) / (frame_b_num - frame_a_num)
 
-        # --- New Image creation (Invariato) ---
+        # --- New Image creation (Unchanged) ---
         new_img = copy.deepcopy(img_a)
         new_img["id"] = next_image_id
         next_image_id += 1
@@ -390,30 +385,30 @@ for (frame_a_num, img_a), (frame_b_num, img_b) in zip(frames_index[:-1], frames_
             new_img["extra"]["name"] = make_extra_name(current_frame_num)
         new_images.append(new_img)
 
-        # --- New Annotation creation (Invariato) ---
+        # --- New Annotation creation (Unchanged) ---
         new_ann = copy.deepcopy(ann_a)
         new_ann["id"] = next_ann_id
         next_ann_id += 1
         new_ann["image_id"] = new_img["id"]
 
-        # 2. BBOX: USA IL DATO MANUALE (TARGET BBOX)
+        # 2. BBOX: USE MANUAL DATA (TARGET BBOX)
         if current_frame_num in manual_bbox_by_frame_num:
             bbox_manual_target = manual_bbox_by_frame_num[current_frame_num]
             new_ann["bbox"] = bbox_manual_target
         else:
-            # Fallback: INTERPOLAZIONE BBOX STANDARD (se il dato manuale manca)
+            # Fallback: STANDARD BBOX INTERPOLATION (if manual data is missing)
             bbox_manual_target = interpolate_list(bbox_a, bbox_b, t)
             new_ann["bbox"] = bbox_manual_target
-            print(f"⚠️ Avviso: Bbox manuale non trovata per frame {current_frame_num}. Usata interpolazione Bbox standard.")
+            print(f"⚠️ Warning: Manual Bbox not found for frame {current_frame_num}. Standard Bbox interpolation used.")
 
 
-        # 3. KEYPOINTS: INTERPOLA IN SPAZIO NORMALIZZATO E DENORMALIZZA CON TARGET BBOX
+        # 3. KEYPOINTS: INTERPOLATE IN NORMALIZED SPACE AND DENORMALIZE WITH TARGET BBOX
         if "keypoints" in ann_a and "keypoints" in ann_b:
             
-            # Interpolazione dei keypoint nello spazio 0-1
+            # Keypoint interpolation in 0-1 space
             kp_interp_norm = interpolate_normalized_keypoints(kp_norm_a, kp_norm_b, t)
             
-            # Denormalizzazione nello spazio pixel usando la BBOX MANUALE
+            # Denormalization to pixel space using the MANUAL BBOX
             new_kp = denormalize_keypoints(kp_interp_norm, bbox_manual_target)
             new_ann["keypoints"] = new_kp
 
