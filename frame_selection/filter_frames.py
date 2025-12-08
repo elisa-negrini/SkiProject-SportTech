@@ -20,8 +20,8 @@ DESTINATION_FOLDER_NAME = "to be added"
 STEP_SIZE = 10
 
 # Range of JPXXXX folders to process (from 1 to 100)
-START_NUM = 24 # Impostato a 12 come nel tuo esempio, ma puoi cambiarlo
-END_NUM = 24
+START_NUM = 5 # Impostato a 12 come nel tuo esempio, ma puoi cambiarlo
+END_NUM = 5
 
 # -----------------------------------------------------------------------------------
 
