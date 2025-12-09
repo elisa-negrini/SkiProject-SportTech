@@ -11,6 +11,7 @@ sport_tech_env/
 # Specific File Types/Names to Ignore
 *.json
 *.jpg
+*.png
 *.mp4
 README.dataset.txt
 README.roboflow.txt
