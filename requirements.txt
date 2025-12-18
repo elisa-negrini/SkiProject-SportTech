@@ -2,3 +2,10 @@ opencv-python
 numpy
 matplotlib
 tqdm
+einops
+pytorch_lightning
+wandb
+torch
+torchvision
+absl-py
+natsort
