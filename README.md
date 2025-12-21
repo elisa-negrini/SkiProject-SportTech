@@ -29,22 +29,26 @@ SkiProject-SportTech/
 │               └── 📄 ...
 │               └── 📄 output_video_JP00XX.mp4   # 'Final' video
 │
-├── 📂 frame_selection/ 
-│   ├── 📄 filter_frames.py                # Initial frame filtering script
-│   └── 📄 add_frames_interactive.py       # Manual frame addition tool
-│
 ├── 📂 raw_annotations/                    # Downloaded Roboflow annotations
 │   └── 📂 train/
 │       └── 📄 _annotations.coco.json      # Full COCO annotations from Roboflow (all jumps mixed togethere)
 │
-├── 📄 extract_annotations.py              # Extracts jump-specific annotations
-├── 📄 interpolation.py                    # Keypoint interpolation between frames
+├── 📂 utils/              
+│   ├── 📄 __init__.py                     # Creates annotated frame images
+│   ├── 📄 annotations_manager.py          # Extracts jump-specific annotations
+│   ├── 📄 box_filter.py                   # Extraxt and filter boxes annotations
+│   ├── 📄 interpolator.py                 # Keypoint interpolation between frames
+│   └── 📄 visualizer.py                   # Generates annotated frame images and video
 │
-├── 📂 visualize_annotations/              # Visualization scripts
-│   ├── 📄 visualize_interpolation.py      # Creates annotated frame images
-│   └── 📄 create_video.py                 # Generates video from frames
-│
-└── 📄 main_annotation.py                  # Master workflow orchestrator
+└── 📄 main.py                             # Master workflow orchestrator
+├── 📂 utils/
+│    ├── 📄 datamodule.py           # Dataset Loader
+│    ├── 📄 domainadapt_flags.py    # Config Settings
+│    ├── 📄 main.py                 # Training Entry
+│    ├── 📄 model.py                # Adaptation Network
+│    ├── 📄 preprocess.py           # Data Preparation
+│    ├── 📄 transformer.py          # Transformer Blocks
+│    └── 📄 utils.py                # Helper Functions
 ```
 
 ---
