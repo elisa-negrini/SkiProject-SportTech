@@ -9,9 +9,9 @@ import sys
 # in questo script carichiamo i json e creiamo il dataset diviso in train e test in formato pkl
 # dopodiche definiamo il nostro datamodule
 
-DATASET_ROOT = "dataset/annotations"
+DATASET_ROOT = "/media/mmlab/Volume/sporttech_dataset/dataset"
+OUTPUT_DIR = "/media/mmlab/Volume/sporttech_dataset/dataset_preprocessed"
 
-OUTPUT_DIR = "dataset_processed" 
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
@@ -83,9 +83,14 @@ def main():
     # The double asterisk ** would be for recursive search, but given your fixed structure,
     # we build the specific pattern.
     
-    search_pattern = os.path.join(DATASET_ROOT, "*", "train", "*.json")
+    search_pattern = os.path.join(DATASET_ROOT, "*.json")
     json_files = glob.glob(search_pattern)
     
+    print(f"Looking in: {DATASET_ROOT}")
+    if not json_files:
+        print("❌ Nessun file JSON trovato! Hai fatto l'upload con SCP?")
+        return
+
     print(f"Found {len(json_files)} JSON files to process.")
     
     # 2. DATA EXTRACTION
