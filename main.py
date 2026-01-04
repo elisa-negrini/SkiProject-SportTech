@@ -1,3 +1,4 @@
+from old_scripts import normalizer_elisa
 from utils.annotation_manager import AnnotationManager
 from utils.box_filter import filter_boxes
 from utils.interpolator import Interpolator
@@ -58,6 +59,10 @@ def main():
                 print("⚠️ Normalization failed.")
 
     print("\n=== BATCH COMPLETE ===")
+
+    if do_norm:
+        print("\n--- Generating Final Dataset CSV ---")
+        normalizer.create_dataset_csv()
 
 if __name__ == "__main__":
     main()
