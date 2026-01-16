@@ -120,6 +120,8 @@ class MetricsCalculator:
         for _, phase_row in self.df_phases.iterrows():
             jump_id = phase_row['jump_id']
             print(f"Processing {jump_id}...")
+
+            telemark_flag = phase_row.get('telemark_f_l', 'unknown') 
             
             # Get all frames for this jump
             jump_frames = self.df_kpts[self.df_kpts['jump_id'] == jump_id].copy()
@@ -158,10 +160,13 @@ class MetricsCalculator:
                     'jump_id': jump_id,
                     'frame_idx': f_idx,
                     'view_detected': view_type,
+                    'telemark_flag': telemark_flag,
                     'v_style_angle': np.nan,
                     'body_ski_angle': np.nan,
                     'symmetry_index': np.nan,
                     'telemark_offset_x': np.nan,
+                    'telemark_proj_ski': np.nan,   # Proiezione su vettore sci
+                    'telemark_leg_angle': np.nan,      # Angolo apertura femori
                     'is_flight_phase': 0,
                     'is_landing_phase': 0
                 }
@@ -231,21 +236,55 @@ class MetricsCalculator:
                     if angles:
                         res['body_ski_angle'] = np.mean(angles)
 
-                # 3. METRIC: Telemark Offset (Landing)
+                
+                # --- MODIFICA 3: Calcolo Multiplo Telemark Raw ---
                 if tele_window and tele_window[0] <= f_idx <= tele_window[1]:
-                    res['is_landing_phase'] = 1
-                    
+                    # Recupera caviglie
                     p_ank_r = self.get_point(frame_row, 'r_ankle')
                     p_ank_l = self.get_point(frame_row, 'l_ankle')
                     
+                    # 1. Offset X Semplice (Raw)
                     if p_ank_r is not None and p_ank_l is not None:
-                        # Absolute X distance
-                        res['telemark_offset_x'] = abs(p_ank_r[0] - p_ank_l[0])
+                        res['telemark_offset_x_raw'] = abs(p_ank_r[0] - p_ank_l[0])
 
-                # Only add row if we calculated at least one metric
-                if res['v_style_angle'] is not np.nan or \
-                   res['body_ski_angle'] is not np.nan or \
-                   res['telemark_offset_x'] is not np.nan:
+                    # 2. Proiezione su Vettore Sci (Raw - Ottimo per Laterale/Diagonale)
+                    p_tip_r, p_tail_r = self.get_point(frame_row, 'r_ski_tip'), self.get_point(frame_row, 'r_ski_tail')
+                    p_tip_l, p_tail_l = self.get_point(frame_row, 'l_ski_tip'), self.get_point(frame_row, 'l_ski_tail')
+                    
+                    ski_dirs = []
+                    if p_tip_r is not None and p_tail_r is not None: ski_dirs.append(p_tip_r - p_tail_r)
+                    if p_tip_l is not None and p_tail_l is not None: ski_dirs.append(p_tip_l - p_tail_l)
+                    
+                    if ski_dirs and p_ank_r is not None and p_ank_l is not None:
+                        # Media direzione sci
+                        avg_ski_vec = np.mean(ski_dirs, axis=0)
+                        norm = np.linalg.norm(avg_ski_vec)
+                        if norm > 0:
+                            unit_ski_vec = avg_ski_vec / norm
+                            vec_ankles = p_ank_r - p_ank_l
+                            # Prodotto Scalare
+                            res['telemark_proj_ski_raw'] = abs(np.dot(vec_ankles, unit_ski_vec))
+
+                    # 3. Angolo Gambe (Gradi - Ottimo per invarianza allo zoom)
+                    p_hip_r, p_knee_r = self.get_point(frame_row, 'r_hip'), self.get_point(frame_row, 'r_knee')
+                    p_hip_l, p_knee_l = self.get_point(frame_row, 'l_hip'), self.get_point(frame_row, 'l_knee')
+                    
+                    if all(x is not None for x in [p_hip_r, p_knee_r, p_hip_l, p_knee_l]):
+                        vec_femur_r = p_knee_r - p_hip_r
+                        vec_femur_l = p_knee_l - p_hip_l
+                        res['telemark_leg_angle'] = self.calculate_vector_angle(vec_femur_r, vec_femur_l)
+
+                    # --- PEZZO MANCANTE: SALVATAGGIO RIGA ---
+                # Se abbiamo calcolato almeno una metrica utile, salviamo la riga
+                metrics_found = [
+                    res['v_style_angle'], 
+                    res['body_ski_angle'], 
+                    res.get('telemark_offset_x_raw'), # Usa .get perché la chiave potrebbe non esistere se non l'hai inizializzata
+                    res.get('telemark_proj_ski_raw')
+                ]
+                
+                # Controlla se almeno un valore non è NaN
+                if any(pd.notna(x) for x in metrics_found):
                     detailed_results.append(res)
         
         # Save Detailed CSV
@@ -264,22 +303,25 @@ class MetricsCalculator:
         summary_rows = []
         grouped = df_det.groupby('jump_id')
         
-        for jump_id, group in grouped:
+        for jump_id, group in df_det.groupby('jump_id'):
             row = {'jump_id': jump_id}
             
-            # Averages (ignoring NaNs automatically)
+            # --- MODIFICA 4: Salviamo la flag e le nuove medie ---
+            # Prendiamo la flag dal primo frame disponibile (è uguale per tutto il salto)
+            row['telemark_flag'] = group['telemark_flag'].iloc[0]
+            
             row['avg_v_style_angle'] = group['v_style_angle'].mean()
             row['avg_body_ski_angle'] = group['body_ski_angle'].mean()
             row['avg_symmetry_index'] = group['symmetry_index'].mean()
-            row['telemark_score_raw'] = group['telemark_offset_x'].mean()
             
-            # Stability (Standard Deviation of Angles in flight)
-            # We combine V-style and BSA std dev as a proxy for jitter
-            # If front view, use V-style jitter. If side, use BSA jitter.
+            # Le 3 metriche Telemark separate
+            row['avg_telemark_offset_x'] = group['telemark_offset_x_raw'].mean()
+            row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
+            row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
+            
+            # Stabilità
             std_v = group['v_style_angle'].std()
             std_bsa = group['body_ski_angle'].std()
-            
-            # Pick the valid one (fillna 0 if not enough data for std)
             row['flight_stability_std'] = np.nanmean([std_v, std_bsa])
             
             summary_rows.append(row)
