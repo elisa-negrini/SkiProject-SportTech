@@ -161,6 +161,7 @@ class MetricsCalculator:
                     'frame_idx': f_idx,
                     'view_detected': view_type,
                     'telemark_flag': telemark_flag,
+                    'takeoff_knee_angle': np.nan,
                     'v_style_angle': np.nan,
                     'body_ski_angle': np.nan,
                     'symmetry_index': np.nan,
@@ -274,13 +275,51 @@ class MetricsCalculator:
                         vec_femur_l = p_knee_l - p_hip_l
                         res['telemark_leg_angle'] = self.calculate_vector_angle(vec_femur_r, vec_femur_l)
 
+                # 4. TAKE-OFF KNEE ANGLE (Solo Laterale, Frame Esatto)
+                # Controlla se c'è un frame di stacco definito nel CSV fasi
+                takeoff_frame = phase_row.get('take_off_frame') 
+                
+                # Calcola SOLO SE:
+                # 1. Siamo nel frame esatto dello stacco
+                # 2. Il frame è valido (non NaN)
+                if pd.notna(takeoff_frame) and f_idx == int(takeoff_frame):
+                    
+                    # Calcoliamo angolo per entrambe le gambe e facciamo la media
+                    angles = []
+                    
+                    # Gamba Destra: Hip -> Knee -> Ankle
+                    p_hip_r = self.get_point(frame_row, 'r_hip')
+                    p_knee_r = self.get_point(frame_row, 'r_knee')
+                    p_ank_r = self.get_point(frame_row, 'r_ankle')
+                    
+                    if all(x is not None for x in [p_hip_r, p_knee_r, p_ank_r]):
+                        # Vettori: Femore (Knee->Hip) e Tibia (Knee->Ankle)
+                        # Nota: L'ordine è importante per avere l'angolo interno
+                        vec_femur = p_hip_r - p_knee_r
+                        vec_tibia = p_ank_r - p_knee_r
+                        angles.append(self.calculate_vector_angle(vec_femur, vec_tibia))
+
+                    # Gamba Sinistra
+                    p_hip_l = self.get_point(frame_row, 'l_hip')
+                    p_knee_l = self.get_point(frame_row, 'l_knee')
+                    p_ank_l = self.get_point(frame_row, 'l_ankle')
+                    
+                    if all(x is not None for x in [p_hip_l, p_knee_l, p_ank_l]):
+                        vec_femur = p_hip_l - p_knee_l
+                        vec_tibia = p_ank_l - p_knee_l
+                        angles.append(self.calculate_vector_angle(vec_femur, vec_tibia))
+                    
+                    if angles:
+                        res['takeoff_knee_angle'] = np.mean(angles)
+
                     # --- PEZZO MANCANTE: SALVATAGGIO RIGA ---
                 # Se abbiamo calcolato almeno una metrica utile, salviamo la riga
                 metrics_found = [
                     res['v_style_angle'], 
                     res['body_ski_angle'], 
                     res.get('telemark_offset_x_raw'), # Usa .get perché la chiave potrebbe non esistere se non l'hai inizializzata
-                    res.get('telemark_proj_ski_raw')
+                    res.get('telemark_proj_ski_raw'),
+                    res.get('takeoff_knee_angle')
                 ]
                 
                 # Controlla se almeno un valore non è NaN
@@ -307,9 +346,8 @@ class MetricsCalculator:
             row = {'jump_id': jump_id}
             
             # --- MODIFICA 4: Salviamo la flag e le nuove medie ---
-            # Prendiamo la flag dal primo frame disponibile (è uguale per tutto il salto)
-            row['telemark_flag'] = group['telemark_flag'].iloc[0]
             
+            row['takeoff_knee_angle'] = group['takeoff_knee_angle'].mean()
             row['avg_v_style_angle'] = group['v_style_angle'].mean()
             row['avg_body_ski_angle'] = group['body_ski_angle'].mean()
             row['avg_symmetry_index'] = group['symmetry_index'].mean()
