@@ -8,6 +8,12 @@ sport_tech_env/
 */Scripts/
 */Lib/
 
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # Specific File Types/Names to Ignore
 *.json
 *.jpg
