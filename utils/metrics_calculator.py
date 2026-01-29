@@ -31,7 +31,9 @@ class MetricsCalculator:
         # These IDs correspond to the Roboflow annotation system
         self.kpt_map = {
             # Body
+            'head': '1',
             'neck': '2',
+            'center_pelvis': '9',
             'r_shoulder': '3',  'l_shoulder': '6',
             'r_hip': '17',      'l_hip': '10',
             'r_knee': '18',     'l_knee': '11',
@@ -164,6 +166,43 @@ class MetricsCalculator:
             return 'SIDE'
         else:
             return 'FRONT'
+        
+
+    def get_best_fit_vector(self, points):
+        """
+        Calculates direction vector using linear regression on N points.
+        points: list of np.array [x, y]
+        Returns: np.array [dx, dy] normalized
+        """
+        if len(points) < 2: return None
+        
+        # Separate X and Y
+        data = np.array(points)
+        x = data[:, 0]
+        y = data[:, 1]
+        
+        # Linear Regression (Fit line y = mx + q)
+        # Note: if the athlete is perfectly vertical, polyfit may have issues.
+        # During flight they are horizontal/diagonal, so it's fine.
+        try:
+            slope, intercept = np.polyfit(x, y, 1)
+            
+            # Construct direction vector from slope
+            # If x increases by 1, y increases by 'slope'
+            # Does the vector go from head to feet?
+            # Check direction based on first and last point (Shoulder -> Ankle)
+            vec = np.array([1, slope])
+            vec = vec / np.linalg.norm(vec) # Normalize
+            
+            # Correct direction (must point towards feet)
+            # Raw vector shoulder->ankle
+            vec_ref = points[-1] - points[0] 
+            if np.dot(vec, vec_ref) < 0:
+                vec = -vec
+                
+            return vec
+        except:
+            return None
 
     def process(self):
         """
@@ -195,17 +234,18 @@ class MetricsCalculator:
                 print(f"      ⚠️ No frames found for {jump_id} in dataset.")
                 continue
 
-            # --- TEMPORAL WINDOWS PREPARATION ---
-            # Each phase has a frame range [start, end] where it's measurable
+            # --- TEMPORAL WINDOWS (SEPARATE FRONT/BACK) ---
             
-            # V-Style (can have frontal AND back view)
-            v_windows = []
-            if phase_row.get('v_style_measurable') == 1.0:
-                if pd.notna(phase_row.get('v_style_front_start')):
-                    v_windows.append((phase_row['v_style_front_start'], phase_row['v_style_front_end']))
-                if pd.notna(phase_row.get('v_style_back_start')):
-                    v_windows.append((phase_row['v_style_back_start'], phase_row['v_style_back_end']))
-            
+            # V-Style FRONT Window
+            v_front_window = None
+            if pd.notna(phase_row.get('v_style_front_start')):
+                v_front_window = (phase_row['v_style_front_start'], phase_row['v_style_front_end'])
+
+            # V-Style BACK Window
+            v_back_window = None
+            if pd.notna(phase_row.get('v_style_back_start')):
+                v_back_window = (phase_row['v_style_back_start'], phase_row['v_style_back_end'])
+
             # Body-Ski Angle (body-ski angle during flight)
             bsa_window = None
             if phase_row.get('body_ski_measurable') == 1.0:
@@ -231,9 +271,10 @@ class MetricsCalculator:
                     'view_detected': view_type,
                     'telemark_flag': telemark_flag,
                     'takeoff_knee_angle': np.nan,
-                    'v_style_angle': np.nan,
+                    'v_style_angle_front': np.nan,
+                    'v_style_angle_back': np.nan,
                     'body_ski_angle': np.nan,
-                    'symmetry_index': np.nan,
+                    'symmetry_index_back': np.nan,
                     'telemark_offset_x_raw': np.nan,
                     'telemark_proj_ski_raw': np.nan,
                     'telemark_leg_angle': np.nan,
@@ -242,85 +283,109 @@ class MetricsCalculator:
                 }
 
                 # ========================================
-                # METRIC 1: V-STYLE & SYMMETRY (Frontal View)
+                # METRIC 1: V-STYLE (Split Front/Back)
                 # ========================================
-                # Measures ski opening angle during flight (V-Style)
-                # and symmetry relative to body axis
-                in_v_window = any(s <= f_idx <= e for s, e in v_windows)
-                if in_v_window:
+                is_front = v_front_window and (v_front_window[0] <= f_idx <= v_front_window[1])
+                is_back = v_back_window and (v_back_window[0] <= f_idx <= v_back_window[1])
+                
+                if is_front or is_back:
                     res['is_flight_phase'] = 1
                     
-                    # Get ski points
                     p_tip_r = self.get_point(frame_row, 'r_ski_tip')
                     p_tail_r = self.get_point(frame_row, 'r_ski_tail')
                     p_tip_l = self.get_point(frame_row, 'l_ski_tip')
                     p_tail_l = self.get_point(frame_row, 'l_ski_tail')
                     
-                    # Get body points
-                    p_neck = self.get_point(frame_row, 'neck')
-                    p_r_hip = self.get_point(frame_row, 'r_hip')
-                    p_l_hip = self.get_point(frame_row, 'l_hip')
-
-                    # Calculate ski vectors
                     if all(x is not None for x in [p_tip_r, p_tail_r, p_tip_l, p_tail_l]):
-                        vec_ski_r = p_tip_r - p_tail_r  # Right ski vector (tail->tip)
-                        vec_ski_l = p_tip_l - p_tail_l  # Left ski vector
+                        vec_ski_r = p_tip_r - p_tail_r
+                        vec_ski_l = p_tip_l - p_tail_l
                         
-                        # V-Style: angle between the two skis
-                        # Wider is better (typically 30-60°)
-                        res['v_style_angle'] = self.calculate_vector_angle(vec_ski_r, vec_ski_l)
+                        angle_val = self.calculate_vector_angle(vec_ski_r, vec_ski_l)
+                        
+                        # Assign to correct column based on window
+                        if is_front:
+                            res['v_style_angle_front'] = angle_val
+                        if is_back:
+                            res['v_style_angle_back'] = angle_val
 
-                        # Symmetry: angle of each ski relative to body axis
-                        if p_neck is not None and p_r_hip is not None and p_l_hip is not None:
-                            mid_hip = (p_r_hip + p_l_hip) / 2
-                            vec_body = mid_hip - p_neck  # Body axis (neck->pelvis)
+                            # --- SYMMETRY CALCULATION (Head-Neck-Pelvis Regression) ---
+                            # Retrieve the 3 central points
+                            pts_axis = [
+                                self.get_point(frame_row, 'head'),
+                                self.get_point(frame_row, 'neck'),
+                                self.get_point(frame_row, 'center_pelvis')
+                            ]
+                            # Filter out those not found (None)
+                            pts_axis = [p for p in pts_axis if p is not None]
                             
-                            # Right ski angle vs body
-                            angle_r = self.calculate_vector_angle(vec_ski_r, vec_body)
-                            # Left ski angle vs body
-                            angle_l = self.calculate_vector_angle(vec_ski_l, vec_body)
+                            # Calculate axis vector with regression (if we have at least 2 points)
+                            vec_axis = self.get_best_fit_vector(pts_axis)
                             
-                            # Symmetry: absolute difference between the two angles
-                            # Ideally should be ~0 (symmetric skis)
-                            res['symmetry_index'] = abs(angle_r - angle_l)
+                            if vec_axis is not None:
+                                # Calculate angle of each ski relative to central axis
+                                angle_r = self.calculate_vector_angle(vec_ski_r, vec_axis)
+                                angle_l = self.calculate_vector_angle(vec_ski_l, vec_axis)
+                                
+                                # Index is the absolute difference
+                                res['symmetry_index_back'] = abs(angle_r - angle_l)
 
-                # ========================================
-                # METRIC 2: BODY-SKI ANGLE (Side View)
-                # ========================================
-                # Measures angle between body (shoulder-ankle) and skis
-                # Important for aerodynamics during flight
+                        # Symmetry (calculated if V-Style exists, regardless of view)   
+                            p_neck = self.get_point(frame_row, 'neck')
+                            p_r_hip = self.get_point(frame_row, 'r_hip')
+                            p_l_hip = self.get_point(frame_row, 'l_hip')
+                            
+                            if p_neck is not None and p_r_hip is not None and p_l_hip is not None:
+                                mid_hip = (p_r_hip + p_l_hip) / 2
+                                vec_body = mid_hip - p_neck
+                                angle_r = self.calculate_vector_angle(vec_ski_r, vec_body)
+                                angle_l = self.calculate_vector_angle(vec_ski_l, vec_body)
+                                res['symmetry_index_back'] = abs(angle_r - angle_l)
+
                 if bsa_window and bsa_window[0] <= f_idx <= bsa_window[1]:
                     res['is_flight_phase'] = 1
                     
-                    # Calculate for both sides and take average
-                    angles = []
+                    # 1. Calculate Body Vectors (Regression)
+                    # Right side
+                    pts_body_r = [self.get_point(frame_row, k) for k in ['r_shoulder', 'r_hip', 'r_knee', 'r_ankle']]
+                    pts_body_r = [p for p in pts_body_r if p is not None] # Filter None
+                    vec_body_r = self.get_best_fit_vector(pts_body_r)
                     
-                    # RIGHT SIDE
-                    p_sh_r = self.get_point(frame_row, 'r_shoulder')
-                    p_ank_r = self.get_point(frame_row, 'r_ankle')
-                    p_tip_r = self.get_point(frame_row, 'r_ski_tip')
-                    p_tail_r = self.get_point(frame_row, 'r_ski_tail')
+                    # Left side
+                    pts_body_l = [self.get_point(frame_row, k) for k in ['l_shoulder', 'l_hip', 'l_knee', 'l_ankle']]
+                    pts_body_l = [p for p in pts_body_l if p is not None]
+                    vec_body_l = self.get_best_fit_vector(pts_body_l)
                     
-                    if all(x is not None for x in [p_sh_r, p_ank_r, p_tip_r, p_tail_r]):
-                        vec_body_r = p_sh_r - p_ank_r  # Body vector (shoulder->ankle)
-                        vec_ski_r = p_tip_r - p_tail_r  # Ski vector
-                        angles.append(self.calculate_vector_angle(vec_body_r, vec_ski_r))
+                    # 2. Calculate Ski Vectors
+                    # Right
+                    p_tr, p_tailr = self.get_point(frame_row, 'r_ski_tip'), self.get_point(frame_row, 'r_ski_tail')
+                    vec_ski_r = (p_tr - p_tailr) if (p_tr is not None and p_tailr is not None) else None
                     
-                    # LEFT SIDE
-                    p_sh_l = self.get_point(frame_row, 'l_shoulder')
-                    p_ank_l = self.get_point(frame_row, 'l_ankle')
-                    p_tip_l = self.get_point(frame_row, 'l_ski_tip')
-                    p_tail_l = self.get_point(frame_row, 'l_ski_tail')
-
-                    if all(x is not None for x in [p_sh_l, p_ank_l, p_tip_l, p_tail_l]):
-                        vec_body_l = p_sh_l - p_ank_l
-                        vec_ski_l = p_tip_l - p_tail_l
-                        angles.append(self.calculate_vector_angle(vec_body_l, vec_ski_l))
+                    # Left
+                    p_tl, p_taill = self.get_point(frame_row, 'l_ski_tip'), self.get_point(frame_row, 'l_ski_tail')
+                    vec_ski_l = (p_tl - p_taill) if (p_tl is not None and p_taill is not None) else None
                     
-                    # Average of valid angles
-                    if angles:
-                        res['body_ski_angle'] = np.mean(angles)
-
+                    # 3. Averages
+                    # Body average
+                    final_body_vec = None
+                    if vec_body_r is not None and vec_body_l is not None:
+                        final_body_vec = (vec_body_r + vec_body_l) / 2
+                    elif vec_body_r is not None: final_body_vec = vec_body_r
+                    elif vec_body_l is not None: final_body_vec = vec_body_l
+                    
+                    # Ski average
+                    final_ski_vec = None
+                    # Normalize before averaging for safety
+                    if vec_ski_r is not None: vec_ski_r = vec_ski_r / np.linalg.norm(vec_ski_r)
+                    if vec_ski_l is not None: vec_ski_l = vec_ski_l / np.linalg.norm(vec_ski_l)
+                    
+                    if vec_ski_r is not None and vec_ski_l is not None:
+                        final_ski_vec = (vec_ski_r + vec_ski_l) / 2
+                    elif vec_ski_r is not None: final_ski_vec = vec_ski_r
+                    elif vec_ski_l is not None: final_ski_vec = vec_ski_l
+                    
+                    # 4. Calculate Final Angle
+                    if final_body_vec is not None and final_ski_vec is not None:
+                        res['body_ski_angle'] = self.calculate_vector_angle(final_body_vec, final_ski_vec)
                 
                 # ========================================
                 # METRIC 3: TELEMARK (Landing)
@@ -414,11 +479,13 @@ class MetricsCalculator:
                 # --- FRAME SAVING ---
                 # Save only if we calculated at least one metric
                 metrics_found = [
-                    res['v_style_angle'], 
+                    res['v_style_angle_front'], 
+                    res['v_style_angle_back'],
                     res['body_ski_angle'], 
                     res.get('telemark_offset_x_raw'),
                     res.get('telemark_proj_ski_raw'),
-                    res.get('takeoff_knee_angle')
+                    res.get('takeoff_knee_angle'),
+                    res.get('symmetry_index_back')
                 ]
                 
                 # Save only if there's at least one valid metric
@@ -436,50 +503,38 @@ class MetricsCalculator:
         return True
 
     def aggregate_metrics(self, df_det):
-        """
-        Aggregates frame-by-frame metrics into summary per jump.
-        
-        For each jump calculates:
-        - Averages of metrics in valid windows
-        - Standard deviations (for stability)
-        
-        Args:
-            df_det: DataFrame with per-frame metrics
-        """
         if df_det.empty:
             print("⚠️ No metrics calculated to aggregate.")
             return
 
         summary_rows = []
-        grouped = df_det.groupby('jump_id')
         
         for jump_id, group in df_det.groupby('jump_id'):
             row = {'jump_id': jump_id}
             
-            # --- METRICS AGGREGATION ---
+            # 1. Separate V-Style averages
+            row['avg_v_style_front'] = group['v_style_angle_front'].mean()
+            row['avg_v_style_back'] = group['v_style_angle_back'].mean()
             
-            # Takeoff knee angle (single value, not average)
+            # Other averages
             row['takeoff_knee_angle'] = group['takeoff_knee_angle'].mean()
-            
-            # V-Style and symmetry (averages during flight)
-            row['avg_v_style_angle'] = group['v_style_angle'].mean()
             row['avg_body_ski_angle'] = group['body_ski_angle'].mean()
-            row['avg_symmetry_index'] = group['symmetry_index'].mean()
+            row['avg_symmetry_index_back'] = group['symmetry_index_back'].mean()
             
-            # Telemark - 3 separate metrics
+            # Telemark
             row['avg_telemark_offset_x'] = group['telemark_offset_x_raw'].mean()
             row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
             row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
             
-            # Flight stability (standard deviation of angles)
-            # Low values = stable flight
-            std_v = group['v_style_angle'].std()
+            # Stability (uses whichever is found: front or back)
+            # Combine the two columns in a temporary series to calculate total standard deviation
+            v_combined = group['v_style_angle_front'].fillna(group['v_style_angle_back'])
+            std_v = v_combined.std()
             std_bsa = group['body_ski_angle'].std()
             row['flight_stability_std'] = np.nanmean([std_v, std_bsa])
             
             summary_rows.append(row)
             
-        # --- SUMMARY CSV SAVING ---
         df_summary = pd.DataFrame(summary_rows)
         df_summary.to_csv(self.output_summary, index=False)
         print(f"✅ Summary metrics saved: {self.output_summary}")
