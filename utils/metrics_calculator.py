@@ -277,6 +277,7 @@ class MetricsCalculator:
                     'symmetry_index_back': np.nan,
                     'telemark_offset_x_raw': np.nan,
                     'telemark_proj_ski_raw': np.nan,
+                    'telemark_depth_back_ratio': np.nan,
                     'telemark_leg_angle': np.nan,
                     'is_flight_phase': 0,
                     'is_landing_phase': 0
@@ -303,43 +304,28 @@ class MetricsCalculator:
                         angle_val = self.calculate_vector_angle(vec_ski_r, vec_ski_l)
                         
                         # Assign to correct column based on window
-                        if is_front:
-                            res['v_style_angle_front'] = angle_val
                         if is_back:
                             res['v_style_angle_back'] = angle_val
 
-                            # --- SYMMETRY CALCULATION (Head-Neck-Pelvis Regression) ---
-                            # Retrieve the 3 central points
-                            pts_axis = [
-                                self.get_point(frame_row, 'head'),
-                                self.get_point(frame_row, 'neck'),
-                                self.get_point(frame_row, 'center_pelvis')
-                            ]
-                            # Filter out those not found (None)
-                            pts_axis = [p for p in pts_axis if p is not None]
+                            # --- ROBUST SYMMETRY CALCULATION ---
+                            # Use neck and pelvis for axis (more stable than head)
+                            p_neck = self.get_point(frame_row, 'neck')
+                            p_pelvis = self.get_point(frame_row, 'center_pelvis')
                             
-                            # Calculate axis vector with regression (if we have at least 2 points)
-                            vec_axis = self.get_best_fit_vector(pts_axis)
-                            
-                            if vec_axis is not None:
-                                # Calculate angle of each ski relative to central axis
+                            if p_neck is not None and p_pelvis is not None:
+                                # Vettore Asse Corporeo: Dal Bacino al Collo (verso l'alto)
+                                vec_axis = p_pelvis - p_neck
+                                
+                                # Compute angles: right ski vs axis, left ski vs axis
+                                # calculate_vector_angle returns positive angle in [0,180]
                                 angle_r = self.calculate_vector_angle(vec_ski_r, vec_axis)
                                 angle_l = self.calculate_vector_angle(vec_ski_l, vec_axis)
                                 
-                                # Index is the absolute difference
-                                res['symmetry_index_back'] = abs(angle_r - angle_l)
-
-                        # Symmetry (calculated if V-Style exists, regardless of view)   
-                            p_neck = self.get_point(frame_row, 'neck')
-                            p_r_hip = self.get_point(frame_row, 'r_hip')
-                            p_l_hip = self.get_point(frame_row, 'l_hip')
-                            
-                            if p_neck is not None and p_r_hip is not None and p_l_hip is not None:
-                                mid_hip = (p_r_hip + p_l_hip) / 2
-                                vec_body = mid_hip - p_neck
-                                angle_r = self.calculate_vector_angle(vec_ski_r, vec_body)
-                                angle_l = self.calculate_vector_angle(vec_ski_l, vec_body)
-                                res['symmetry_index_back'] = abs(angle_r - angle_l)
+                                # Optional robustness check (cross product) for ski crossing
+                                # (Currently rely on absolute angle as main indicator)
+                                if not np.isnan(angle_r) and not np.isnan(angle_l):
+                                    res['symmetry_index_back'] = abs(angle_r - angle_l)
+                        
 
                 if bsa_window and bsa_window[0] <= f_idx <= bsa_window[1]:
                     res['is_flight_phase'] = 1
@@ -427,6 +413,16 @@ class MetricsCalculator:
                             # Dot product: projection of ankle distance on ski axis
                             res['telemark_proj_ski_raw'] = abs(np.dot(vec_ankles, unit_ski_vec))
 
+                        p_neck = self.get_point(frame_row, 'neck')
+                        p_pelvis = self.get_point(frame_row, 'center_pelvis')
+                        
+                        if p_neck is not None and p_pelvis is not None:
+                            # Compute back length in px for current frame
+                            back_len_px = np.linalg.norm(p_neck - p_pelvis)
+                            
+                            # Compute ratio (if back length > 0)
+                                res['telemark_depth_back_ratio'] = res['telemark_proj_ski_raw'] / back_len_px
+
                     # 3. LEG OPENING ANGLE
                     # Angle between femurs (hip->knee)
                     # Invariant to zoom, works in all views
@@ -484,6 +480,7 @@ class MetricsCalculator:
                     res['body_ski_angle'], 
                     res.get('telemark_offset_x_raw'),
                     res.get('telemark_proj_ski_raw'),
+                    res.get('telemark_depth_back_ratio'),
                     res.get('takeoff_knee_angle'),
                     res.get('symmetry_index_back')
                 ]
@@ -524,6 +521,7 @@ class MetricsCalculator:
             # Telemark
             row['avg_telemark_offset_x'] = group['telemark_offset_x_raw'].mean()
             row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
+            row['avg_telemark_depth_ratio'] = group['telemark_depth_back_ratio'].mean()
             row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
             
             # Stability (uses whichever is found: front or back)
