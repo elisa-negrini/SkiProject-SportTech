@@ -41,12 +41,12 @@ def init_all():
 
 def main(argv):
     init_all()
-    wandb.init(project="provatestda", name="From %s to %s" %(FLAGS.dataset,FLAGS.train_dataset))
+    wandb.init(project=FLAGS.project_name, name="From %s to %s" %(FLAGS.dataset,FLAGS.train_dataset))
     wandb_logger = WandbLogger()
     # config = wandb.config
     if FLAGS.mode == "train":
-        if FLAGS.dataset == 'SKIJUMP':
-            dm = SkijumpDataModule(FLAGS)
+        #if FLAGS.dataset == 'SKIJUMP':
+        dm = SkijumpDataModule(FLAGS)
         # elif FLAGS.dataset == 'PANOPTIC2':
         #     dm = PanopticDataModule(FLAGS)
         # elif FLAGS.dataset == 'CMU_all':
@@ -56,22 +56,20 @@ def main(argv):
         # if not os.path.exists(directory):
         #     os.makedirs(directory)
         trainer = Trainer(
-            gpus=1,
             default_root_dir="", #directory, # quella che vogliamo tipo ""
             accelerator="auto",
             devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
             max_epochs=FLAGS.n_epochs,
             precision="bf16",
             gradient_clip_val=5,
-            track_grad_norm=2,
             detect_anomaly=True,
             callbacks=[TQDMProgressBar(refresh_rate=20)],logger=wandb_logger)
         trainer.fit(model, dm)
 
     if FLAGS.mode == "demo":
         model = AdaptationNetwork(FLAGS)
-        if FLAGS.dataset == 'SKIJUMP':
-            dm = SkijumpDataModule(FLAGS)
+    
+        dm = SkijumpDataModule(FLAGS)
         # elif FLAGS.dataset == 'PANOPTIC2':
         #     dm = PanopticDataModule(FLAGS)
         # elif FLAGS.dataset == 'CMU_all':

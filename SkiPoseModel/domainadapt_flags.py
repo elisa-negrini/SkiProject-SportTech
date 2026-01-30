@@ -17,7 +17,8 @@ flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_integer('n_epochs', 25, 'Number of training epochs.')
 flags.DEFINE_integer('masked_joints',6,'Number of masked joints: 13,14,6')
 flags.DEFINE_string('masking_mode','end_effectors','Choose masking mode. random, noise, end-effectors')
-
+# Dopo la riga con 'masking_mode'
+flags.DEFINE_list('ski_joints', [20,21,22,23,13,14,15,16], 'Indices of ski joints to predict')
 #Mode
 flags.DEFINE_string('mode','demo','Train Mode')
 flags.DEFINE_bool('rotate',False,'Plot test different view')
