@@ -1,0 +1,74 @@
+======================================================================
+MACHINE LEARNING ANALYSIS SUMMARY
+======================================================================
+
+
+TARGET: Style_Score
+--------------------------------------------------
+
+  Random Forest:
+    Samples: 100
+    R²:  0.2456
+    MAE: 1.4722
+    MSE: 4.2924
+
+    Top 5 Features:
+      AthleteGender: 0.8792
+      normalized_distance: 0.4457
+      stability_ratio: 0.0176
+      takeoff_peak_velocity: 0.0134
+      takeoff_acceleration_peak: 0.0093
+
+  Gradient Boosting:
+    Samples: 100
+    R²:  0.1221
+    MAE: 1.5744
+    MSE: 4.9949
+
+    Top 5 Features:
+      normalized_distance: 0.9121
+      AthleteGender: 0.6504
+      landing_hip_velocity: 0.0182
+      takeoff_acceleration_peak: 0.0164
+      stability_ratio: 0.0123
+
+  Ridge Regression:
+    Samples: 100
+    R²:  -0.9690
+    MAE: 2.1315
+    MSE: 11.2028
+
+TARGET: Physical_Score
+--------------------------------------------------
+
+  Random Forest:
+    Samples: 100
+    R²:  0.1712
+    MAE: 19.0835
+    MSE: 824.7038
+
+    Top 5 Features:
+      normalized_distance: 0.7886
+      AthleteGender: 0.0711
+      takeoff_knee_angle: 0.0142
+      telemark_stability: 0.0083
+      takeoff_timing_offset: 0.0083
+
+  Gradient Boosting:
+    Samples: 100
+    R²:  -0.1971
+    MAE: 21.6226
+    MSE: 1191.1986
+
+    Top 5 Features:
+      normalized_distance: 1.2091
+      AthleteGender: 0.1139
+      takeoff_knee_angle: 0.0199
+      telemark_stability: 0.0172
+      takeoff_acceleration_peak: 0.0161
+
+  Ridge Regression:
+    Samples: 100
+    R²:  -0.1902
+    MAE: 24.1417
+    MSE: 1184.3636
