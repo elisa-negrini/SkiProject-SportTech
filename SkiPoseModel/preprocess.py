@@ -2,142 +2,101 @@ import os
 import json
 import numpy as np
 import pickle as pkl
-import glob
 import random
-import sys
+import glob
 
-# in questo script carichiamo i json e creiamo il dataset diviso in train e test in formato pkl
-# dopodiche definiamo il nostro datamodule
-
-DATASET_ROOT = "/media/mmlab/Volume/sporttech_dataset/dataset"
-OUTPUT_DIR = "/media/mmlab/Volume/sporttech_dataset/dataset_preprocessed"
+DATASET_ROOT = "../temp_jsons"  
+OUTPUT_DIR = "./dataset_preprocessed/SKIJUMP"
 
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
 TRAIN_RATIO = 0.8
+NUM_TARGET_JOINTS = 23
 
-# Mapping (Target : Source)
-# Target: The ID you want in the final pkl
-# Source: The ID found inside the COCO JSON file
-# NOTE: Python uses 0-based indexing. Below, I convert your map (which is 1-based)
-# by subtracting 1 from everything.
+# --- MAPPING (Target : Source ID from JSON) ---
+# Based on your visual verification:
+# Target 1 (Head)    <- Takes from Source ID 19 (which is at index 18)
+# Target 2 (Neck)    <- Takes from Source ID 1 (which is at index 0)
 USER_MAP_1_BASED = {
-    1: 1, 2: 6, 3: 3, 4: 4, 5: 5, 6: 7, 7: 8, 8: 9, 9: 10, 10: 11,
-    11: 12, 12: 17, 13: 18, 14: 19, 15: 20, 16: 21, 17: 13, 18: 14,
-    19: 2, 20: 16, 21: 15, 22: 22, 23: 23
+    1: 1, 2: 19, 3: 3, 4: 4, 5: 5,         # Head, Neck, Right Arm
+    6: 2, 7: 6, 8: 7,                      # Left Arm
+    9: 8, 10: 9, 11: 10, 12: 11,           # Pelvis, Left Leg
+    13: 17, 14: 18, 15: 21, 16: 20,        # Left Foot/Ski
+    17: 12, 18: 13, 19: 14,                # Right Leg
+    20: 15, 21: 16, 22: 22, 23: 23         # Right Foot/Ski
 }
 
-# Create 0-based map for array usage
-KEYPOINT_MAP = {k-1: v-1 for k, v in USER_MAP_1_BASED.items()}
+KEYPOINT_MAP = {k-1: v for k, v in USER_MAP_1_BASED.items()} # from 1-based to 0-based mapping
 
-NUM_TARGET_JOINTS = 23
 def process_coco_json(json_path):
-    """
-    Reads a COCO JSON file and extracts poses mapped according to KEYPOINT_MAP.
-    Returns a list of numpy arrays (N_joints, 3) -> (x, y, confidence)
-    """
-    extracted_poses = []
-    
     if not os.path.exists(json_path):
-        print(f"File not found: {json_path}")
+        print(f"Skipping {json_path}, not found.")
         return []
 
     with open(json_path, 'r') as f:
         data = json.load(f)
-
-    # COCO files have an 'annotations' list
-    annotations = data.get('annotations', [])
     
+    annotations = data.get('annotations', [])
+    extracted_poses = []
+
     for ann in annotations:
-        # COCO keypoints is a flat list: [x1, y1, v1, x2, y2, v2, ...]
         raw_kps = np.array(ann['keypoints'])
-        
-        # Reshape to (N, 3) to have rows of (x, y, v)
-        # N is calculated automatically (-1)
-        raw_kps = raw_kps.reshape(-1, 3)
-        
-        # Create empty container for target skeleton (23 joints)
-        # We use 3 channels: x, y, confidence (v)
         target_skel = np.zeros((NUM_TARGET_JOINTS, 3), dtype=np.float32)
-        
-        # Fill the new skeleton using the map
-        for target_idx, source_idx in KEYPOINT_MAP.items():
-            # Safety check: if the JSON has fewer joints than requested
-            if source_idx < len(raw_kps):
-                target_skel[target_idx] = raw_kps[source_idx]
-            else:
-                # If joint is missing in source, leave as 0,0,0
-                pass
+
+        for t_idx, source_id in KEYPOINT_MAP.items():
+            s_idx = (source_id - 1) * 3
+            
+            if s_idx + 2 < len(raw_kps):
+                target_skel[t_idx, 0] = raw_kps[s_idx]     # x
+                target_skel[t_idx, 1] = raw_kps[s_idx + 1] # y
+                target_skel[t_idx, 2] = raw_kps[s_idx + 2] # conf
         
         extracted_poses.append(target_skel)
-
-    return extracted_poses
+    
+    return np.array(extracted_poses)
 
 def main():
-    all_skeletons = []
-
-    # 1. SEARCH FILES
-    # Use glob to find all files matching the pattern
-    # dataset/annotations/*/train/*.json
-    # The double asterisk ** would be for recursive search, but given your fixed structure,
-    # we build the specific pattern.
+    print("Starting preprocessing...")
     
-    search_pattern = os.path.join(DATASET_ROOT, "*.json")
-    json_files = glob.glob(search_pattern)
-    
-    print(f"Looking in: {DATASET_ROOT}")
+    json_files = []
+    json_files = glob.glob(os.path.join(DATASET_ROOT, "*.json"))
     if not json_files:
-        print("❌ Nessun file JSON trovato! Hai fatto l'upload con SCP?")
-        return
+        json_files = glob.glob(os.path.join(DATASET_ROOT, "**", "*.json"), recursive=True)
 
-    print(f"Found {len(json_files)} JSON files to process.")
-    
-    # 2. DATA EXTRACTION
+    print(f"Found {len(json_files)} JSON files.")
+
+    all_skeletons = []
     for fpath in json_files:
-        print(f"Processing: {fpath}")
         poses = process_coco_json(fpath)
-        all_skeletons.extend(poses)
-        print(f" -> Extracted {len(poses)} poses.")
+        if len(poses) > 0:
+            all_skeletons.extend(poses)
+            print(f" -> {os.path.basename(fpath)}: {len(poses)} poses.")
 
-    # Convert to numpy array for convenience
-    all_skeletons = np.array(all_skeletons) # Shape: (Total_Poses, 23, 3)
-    
+    all_skeletons = np.array(all_skeletons)
     print(f"\nTotal extracted poses: {all_skeletons.shape[0]}")
 
-    # 3. TRAIN / TEST SPLIT (RANDOM)
-    # Create a list of indices and shuffle them
-    num_samples = len(all_skeletons)
-    indices = list(range(num_samples))
-    random.shuffle(indices)
-    
-    split_point = int(num_samples * TRAIN_RATIO)
-    
-    train_indices = indices[:split_point]
-    test_indices = indices[split_point:]
-    
-    train_data = all_skeletons[train_indices]
-    test_data = all_skeletons[test_indices]
-    
-    print(f"Train dimensions: {train_data.shape}")
-    print(f"Test dimensions: {test_data.shape}")
+    if len(all_skeletons) == 0:
+        print("❌ No poses extracted. Check paths.")
+        return
 
-    # 4. SAVE TO PKL
-    # Create dictionaries as in the original file
+    indices = list(range(len(all_skeletons)))
+    random.shuffle(indices)
+    split_point = int(len(all_skeletons) * TRAIN_RATIO)
+    
+    train_data = all_skeletons[indices[:split_point]]
+    test_data = all_skeletons[indices[split_point:]]
+    
     dict_train = {'openpose_2d': train_data}
     dict_test = {'openpose_2d': test_data}
     
-    # Save Train
-    train_path = os.path.join(OUTPUT_DIR, "train.pkl")
-    with open(train_path, 'wb') as handle:
-        pkl.dump(dict_train, handle, protocol=pkl.HIGHEST_PROTOCOL)
-    print(f"Train set saved to: {train_path}")
-
-    # Save Test
-    test_path = os.path.join(OUTPUT_DIR, "test.pkl")
-    with open(test_path, 'wb') as handle:
-        pkl.dump(dict_test, handle, protocol=pkl.HIGHEST_PROTOCOL)
-    print(f"Test set saved to: {test_path}")
+    with open(os.path.join(OUTPUT_DIR, "train.pkl"), 'wb') as f:
+        pkl.dump(dict_train, f, protocol=pkl.HIGHEST_PROTOCOL)
+        
+    with open(os.path.join(OUTPUT_DIR, "test.pkl"), 'wb') as f:
+        pkl.dump(dict_test, f, protocol=pkl.HIGHEST_PROTOCOL)
+        
+    print(f"File saved in {OUTPUT_DIR}")
 
 if __name__ == "__main__":
     main()
