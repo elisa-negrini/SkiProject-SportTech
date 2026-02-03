@@ -1,6 +1,4 @@
 from distutils.command.config import config
-#from datamodule_smpl import SMPLDataModule
-#from datamodule_h36m import H36MDatamodule
 from datamodule import SkijumpDataModule
 from model import AdaptationNetwork
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
@@ -15,6 +13,8 @@ import domainadapt_flags
 from absl import app
 from absl import flags
 import warnings
+from datetime import datetime
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 FLAGS = flags.FLAGS
 
@@ -35,56 +35,65 @@ def init_all():
 
     # pl.seed_everything(FLAGS.seed)
     torch.cuda.empty_cache()
-
-# def sweep_iteration():
-    
+   
 
 def main(argv):
     init_all()
-    wandb.init(project=FLAGS.project_name, name="From %s to %s" %(FLAGS.dataset,FLAGS.train_dataset))
-    wandb_logger = WandbLogger()
+
+    # wandb.init(project=FLAGS.project_name, name="From %s to %s" %(FLAGS.dataset,FLAGS.train_dataset))
+    # wandb_logger = WandbLogger()
+
+    wandb_logger = WandbLogger(
+        project=FLAGS.project_name, 
+        name=f"TEST_{FLAGS.dataset}", 
+        log_model=False
+    )
+
     # config = wandb.config
     if FLAGS.mode == "train":
-        #if FLAGS.dataset == 'SKIJUMP':
         dm = SkijumpDataModule(FLAGS)
-        # elif FLAGS.dataset == 'PANOPTIC2':
-        #     dm = PanopticDataModule(FLAGS)
-        # elif FLAGS.dataset == 'CMU_all':
-        #     dm = SMPLDataModule(FLAGS)
         model = AdaptationNetwork(FLAGS)
-        # directory = "/home/giuliamartinelli/Documents/Code/UnsupervisedHMR/DomainAdaptationModule/Models/%s/%s" %(FLAGS.dataset,FLAGS.masking_mode)
-        # if not os.path.exists(directory):
-        #     os.makedirs(directory)
+        run_name = f"{FLAGS.dataset}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        checkpoint_path = os.path.join(FLAGS.checkpoint_dir, run_name)
+        os.makedirs(checkpoint_path, exist_ok=True)
         trainer = Trainer(
-            default_root_dir="", #directory, # quella che vogliamo tipo ""
+            default_root_dir=checkpoint_path,
             accelerator="auto",
-            devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
+            devices=1 if torch.cuda.is_available() else None,
             max_epochs=FLAGS.n_epochs,
-            precision="bf16",
+            precision=32, #"bf16",
             gradient_clip_val=5,
             detect_anomaly=True,
-            callbacks=[TQDMProgressBar(refresh_rate=20)],logger=wandb_logger)
+            callbacks=[
+                TQDMProgressBar(refresh_rate=20), ModelCheckpoint(
+                                                    dirpath=checkpoint_path,
+                                                    filename='{epoch:02d}-{val_loss:.4f}',
+                                                    save_top_k=3,
+                                                    save_last=True,
+                                                    monitor='val_loss',
+                                                    mode='min'
+                                                )
+                        ],
+            logger=wandb_logger)
         trainer.fit(model, dm)
 
-    if FLAGS.mode == "demo":
+    if FLAGS.mode == "demo" or FLAGS.mode == "test":
         model = AdaptationNetwork(FLAGS)
-    
         dm = SkijumpDataModule(FLAGS)
-        # elif FLAGS.dataset == 'PANOPTIC2':
-        #     dm = PanopticDataModule(FLAGS)
-        # elif FLAGS.dataset == 'CMU_all':
-        #     dm = SMPLDataModule(FLAGS)
         trainer = Trainer(
             # gpus=1,
             accelerator="auto",
-            devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
+            devices=1 if torch.cuda.is_available() else None,
             max_epochs=FLAGS.n_epochs,
-            precision="bf16",
+            precision=32, #"bf16-mixed",
             gradient_clip_val=5,
             # track_grad_norm=2,
             detect_anomaly=True,
-            callbacks=[TQDMProgressBar(refresh_rate=20)],logger=wandb_logger)
+            callbacks=[TQDMProgressBar(refresh_rate=20)],
+            logger=wandb_logger)
         trainer.test(model = model,dataloaders = dm,ckpt_path=FLAGS.load_checkpoint)
+
+        wandb.finish()
     
 
 if __name__ == '__main__':
