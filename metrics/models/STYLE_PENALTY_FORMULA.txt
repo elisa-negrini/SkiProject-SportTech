@@ -1,0 +1,40 @@
+============================================================
+STYLE PENALTY MODEL
+Predicts Style Points Lost Due to Biomechanical Flaws
+============================================================
+
+FORMULA:
+----------------------------------------
+Style_Penalty (points) =
+    + 0.9664 x Landing Impact (66%)
+    -0.4974 x Telemark Quality (34%)
+    -0.0029 x Flight Stability (0%)
+    + 3.5952 (intercept)
+
+FEATURE DETAILS:
+----------------------------------------
+
+Landing Impact:
+  Original metric: landing_hip_velocity
+  Coefficient: 0.9664
+  Description: Hip descent velocity at landing (higher = harder landing)
+  Effect: Higher value -> MORE penalty
+
+Telemark Quality:
+  Original metric: telemark_scissor_mean
+  Coefficient: -0.4974
+  Description: Leg separation in telemark position (normalized)
+  Effect: Higher value -> LESS penalty
+
+Flight Stability:
+  Original metric: flight_std
+  Coefficient: -0.0029
+  Description: Body-ski angle variation during flight (lower = more stable)
+  Effect: Higher value -> LESS penalty
+
+
+MODEL PERFORMANCE:
+----------------------------------------
+  R² = 0.165
+  MAE = 1.52 points
+  RMSE = 2.00 points
