@@ -586,20 +586,33 @@ class MetricsCalculator:
             row['avg_symmetry_index_back'] = group['symmetry_index_back'].mean()
             
             # Telemark
-            row['avg_telemark_offset_x'] = group['telemark_offset_x_raw'].mean()
             row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
             row['avg_telemark_depth_ratio'] = group['telemark_depth_back_ratio'].mean()
             row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
-            
-            # Stability (uses whichever is found: front or back)
-            # Combine the two columns in a temporary series to calculate total standard deviation
-            v_combined = group['v_style_angle_front'].fillna(group['v_style_angle_back'])
-            std_v = v_combined.std()
-            std_bsa = group['body_ski_angle'].std()
-            row['flight_stability_std'] = np.nanmean([std_v, std_bsa])
             
             summary_rows.append(row)
             
         df_summary = pd.DataFrame(summary_rows)
         df_summary.to_csv(self.output_summary, index=False)
         print(f"✅ Summary metrics saved: {self.output_summary}")
+
+
+if __name__ == "__main__":
+    print("=" * 70)
+    print("CORE METRICS CALCULATOR")
+    print("Ski Jumping Biomechanical Analysis")
+    print("=" * 70)
+    
+    calc = MetricsCalculator()
+    
+    # Load data first
+    if not calc.load_data():
+        print("\n❌ Failed to load data!")
+        exit(1)
+    
+    success = calc.process()
+    
+    if success:
+        print("\n✅ Processing complete!")
+    else:
+        print("\n❌ Processing failed!")

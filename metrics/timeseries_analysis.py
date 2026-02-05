@@ -345,7 +345,8 @@ class TimeSeriesAnalyzer:
     # 2. DTW CLUSTERING
     # =========================================================================
     
-    def compute_dtw_distance(self, series1: np.ndarray, series2: np.ndarray) -> float:
+    def compute_dtw_distance(self, series1: np.ndarray, series2: np.ndarray, 
+                            constrained: bool = False, window_ratio: float = 0.1) -> float:
         """
         Compute Dynamic Time Warping distance between two time series.
         
@@ -358,8 +359,13 @@ class TimeSeriesAnalyzer:
         minimizes the sum of pointwise distances. This is more robust
         than Euclidean distance for comparing temporal patterns.
         
+        CDTW (Constrained DTW) adds a Sakoe-Chiba band constraint to limit
+        the maximum warping, making it faster and more robust to noise.
+        
         Args:
             series1, series2: Two time series of potentially different lengths
+            constrained: If True, use CDTW with Sakoe-Chiba band
+            window_ratio: Max warping as fraction of series length (for CDTW)
             
         Returns:
             float: DTW distance (lower = more similar)
@@ -374,20 +380,33 @@ class TimeSeriesAnalyzer:
         if HAS_DTW:
             # Use dtaidistance library (faster)
             try:
-                distance = dtw.distance(s1, s2)
+                if constrained:
+                    # CDTW with Sakoe-Chiba band
+                    window = int(window_ratio * max(len(s1), len(s2)))
+                    window = max(window, 2)  # Minimum window size
+                    distance = dtw.distance(s1, s2, window=window)
+                else:
+                    # Standard DTW
+                    distance = dtw.distance(s1, s2)
                 return distance
             except:
                 pass
         
-        # Fallback: Simple DTW implementation
+        # Fallback: Simple DTW implementation with optional constraint
         n, m = len(s1), len(s2)
+        window = int(window_ratio * max(n, m)) if constrained else max(n, m)
+        window = max(window, abs(n - m))  # Ensure path is possible
         
         # Cost matrix
         D = np.full((n + 1, m + 1), np.inf)
         D[0, 0] = 0
         
         for i in range(1, n + 1):
-            for j in range(1, m + 1):
+            # Apply Sakoe-Chiba band constraint
+            j_start = max(1, i - window) if constrained else 1
+            j_end = min(m, i + window) if constrained else m
+            
+            for j in range(j_start, j_end + 1):
                 cost = abs(s1[i-1] - s2[j-1])
                 D[i, j] = cost + min(D[i-1, j], D[i, j-1], D[i-1, j-1])
         
@@ -458,6 +477,225 @@ class TimeSeriesAnalyzer:
             print(f"  Cluster {c}: {len(members)} jumps - {members[:5]}...")
         
         return result
+    
+    def compare_dtw_cdtw_clustering(self, trajectories: Dict[str, np.ndarray], 
+                                     n_clusters: int = 3,
+                                     window_ratio: float = 0.1) -> Dict:
+        """
+        Compare standard DTW vs Constrained DTW clustering results.
+        
+        CDTW adds a Sakoe-Chiba band constraint that limits the maximum
+        warping. This can make clustering more robust to noise and faster.
+        
+        METRICS COMPARED:
+        -----------------
+        - Silhouette score: Cluster quality (-1 to 1, higher = better)
+        - Cluster stability: How much assignments change between methods
+        - Computation time: Speed comparison
+        
+        Args:
+            trajectories: Dict mapping jump_id to normalized trajectory
+            n_clusters: Number of clusters to create
+            window_ratio: Max warping for CDTW (fraction of sequence length)
+            
+        Returns:
+            Dict with comparison results and cluster assignments
+        """
+        if not HAS_CLUSTERING:
+            print("⚠️ Clustering comparison requires scipy.cluster")
+            return {}
+        
+        jump_ids = list(trajectories.keys())
+        n = len(jump_ids)
+        
+        if n < 3:
+            print("⚠️ Not enough jumps for clustering")
+            return {}
+        
+        print(f"📊 Comparing DTW vs CDTW clustering on {n} jumps...")
+        
+        import time
+        
+        # --- Standard DTW ---
+        print("  Computing DTW distances...")
+        start_dtw = time.time()
+        distances_dtw = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i + 1, n):
+                d = self.compute_dtw_distance(
+                    trajectories[jump_ids[i]], 
+                    trajectories[jump_ids[j]],
+                    constrained=False
+                )
+                distances_dtw[i, j] = d
+                distances_dtw[j, i] = d
+        
+        condensed_dtw = squareform(distances_dtw)
+        Z_dtw = linkage(condensed_dtw, method='ward')
+        labels_dtw = fcluster(Z_dtw, n_clusters, criterion='maxclust')
+        time_dtw = time.time() - start_dtw
+        
+        # --- Constrained DTW ---
+        print(f"  Computing CDTW distances (window={window_ratio*100:.0f}%)...")
+        start_cdtw = time.time()
+        distances_cdtw = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i + 1, n):
+                d = self.compute_dtw_distance(
+                    trajectories[jump_ids[i]], 
+                    trajectories[jump_ids[j]],
+                    constrained=True,
+                    window_ratio=window_ratio
+                )
+                distances_cdtw[i, j] = d
+                distances_cdtw[j, i] = d
+        
+        condensed_cdtw = squareform(distances_cdtw)
+        Z_cdtw = linkage(condensed_cdtw, method='ward')
+        labels_cdtw = fcluster(Z_cdtw, n_clusters, criterion='maxclust')
+        time_cdtw = time.time() - start_cdtw
+        
+        # --- Compute silhouette scores ---
+        try:
+            from sklearn.metrics import silhouette_score
+            silhouette_dtw = silhouette_score(distances_dtw, labels_dtw, metric='precomputed')
+            silhouette_cdtw = silhouette_score(distances_cdtw, labels_cdtw, metric='precomputed')
+        except ImportError:
+            silhouette_dtw = np.nan
+            silhouette_cdtw = np.nan
+            print("  ⚠️ sklearn not available for silhouette score")
+        
+        # --- Compute cluster stability ---
+        # Adjusted Rand Index measures similarity between clusterings
+        try:
+            from sklearn.metrics import adjusted_rand_score
+            stability = adjusted_rand_score(labels_dtw, labels_cdtw)
+        except ImportError:
+            stability = np.nan
+        
+        # --- Results ---
+        result = {
+            'dtw': {
+                'labels': labels_dtw,
+                'distance_matrix': distances_dtw,
+                'linkage_matrix': Z_dtw,
+                'silhouette': silhouette_dtw,
+                'time': time_dtw
+            },
+            'cdtw': {
+                'labels': labels_cdtw,
+                'distance_matrix': distances_cdtw,
+                'linkage_matrix': Z_cdtw,
+                'silhouette': silhouette_cdtw,
+                'time': time_cdtw
+            },
+            'comparison': {
+                'cluster_stability': stability,
+                'speedup': time_dtw / time_cdtw if time_cdtw > 0 else np.nan,
+                'silhouette_diff': silhouette_cdtw - silhouette_dtw
+            },
+            'jump_ids': jump_ids,
+            'n_clusters': n_clusters
+        }
+        
+        # --- Print summary ---
+        print("\n" + "="*60)
+        print("DTW vs CDTW CLUSTERING COMPARISON")
+        print("="*60)
+        print(f"\n{'Metric':<25} {'DTW':>15} {'CDTW':>15}")
+        print("-"*60)
+        print(f"{'Silhouette Score':<25} {silhouette_dtw:>15.3f} {silhouette_cdtw:>15.3f}")
+        print(f"{'Computation Time (s)':<25} {time_dtw:>15.2f} {time_cdtw:>15.2f}")
+        print(f"{'Speedup':<25} {'1.00x':>15} {time_dtw/time_cdtw if time_cdtw > 0 else 0:>14.2f}x")
+        print("-"*60)
+        print(f"{'Cluster Stability (ARI)':<25} {stability:>15.3f}")
+        print("  (1.0 = identical, 0.0 = random)")
+        
+        # Cluster assignments comparison
+        print("\n📋 Cluster Assignments:")
+        print(f"{'Jump':<10} {'DTW':>8} {'CDTW':>8} {'Same?':>8}")
+        print("-"*36)
+        matches = 0
+        for i, jid in enumerate(jump_ids):
+            same = "✓" if labels_dtw[i] == labels_cdtw[i] else "✗"
+            if labels_dtw[i] == labels_cdtw[i]:
+                matches += 1
+            print(f"{jid:<10} {labels_dtw[i]:>8} {labels_cdtw[i]:>8} {same:>8}")
+        print("-"*36)
+        print(f"Agreement: {matches}/{n} ({100*matches/n:.1f}%)")
+        
+        return result
+    
+    def save_clustering_comparison(self, comparison_result: Dict, 
+                                   output_dir: str = 'metrics') -> None:
+        """
+        Save clustering comparison results to files.
+        
+        Args:
+            comparison_result: Output from compare_dtw_cdtw_clustering()
+            output_dir: Directory to save files
+        """
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        jump_ids = comparison_result['jump_ids']
+        labels_dtw = comparison_result['dtw']['labels']
+        labels_cdtw = comparison_result['cdtw']['labels']
+        
+        # Save cluster assignments
+        df_dtw = pd.DataFrame({
+            'jump_id': jump_ids,
+            'cluster': labels_dtw
+        })
+        df_dtw.to_csv(os.path.join(output_dir, 'cluster_assignments_DTW.csv'), index=False)
+        
+        df_cdtw = pd.DataFrame({
+            'jump_id': jump_ids,
+            'cluster': labels_cdtw
+        })
+        df_cdtw.to_csv(os.path.join(output_dir, 'cluster_assignments_CDTW.csv'), index=False)
+        
+        # Save comparison summary
+        summary_path = os.path.join(output_dir, 'clustering_comparison.txt')
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write("DTW vs CDTW CLUSTERING COMPARISON\n")
+            f.write("="*60 + "\n\n")
+            
+            f.write(f"Number of jumps: {len(jump_ids)}\n")
+            f.write(f"Number of clusters: {comparison_result['n_clusters']}\n\n")
+            
+            f.write("QUALITY METRICS:\n")
+            f.write("-"*40 + "\n")
+            f.write(f"DTW Silhouette Score:  {comparison_result['dtw']['silhouette']:.3f}\n")
+            f.write(f"CDTW Silhouette Score: {comparison_result['cdtw']['silhouette']:.3f}\n")
+            f.write(f"Silhouette Difference: {comparison_result['comparison']['silhouette_diff']:+.3f}\n\n")
+            
+            f.write("COMPUTATIONAL EFFICIENCY:\n")
+            f.write("-"*40 + "\n")
+            f.write(f"DTW Time:  {comparison_result['dtw']['time']:.2f}s\n")
+            f.write(f"CDTW Time: {comparison_result['cdtw']['time']:.2f}s\n")
+            f.write(f"Speedup:   {comparison_result['comparison']['speedup']:.2f}x\n\n")
+            
+            f.write("CLUSTER STABILITY:\n")
+            f.write("-"*40 + "\n")
+            f.write(f"Adjusted Rand Index: {comparison_result['comparison']['cluster_stability']:.3f}\n")
+            f.write("(1.0 = identical clusterings, 0.0 = random)\n\n")
+            
+            f.write("RECOMMENDATION:\n")
+            f.write("-"*40 + "\n")
+            if comparison_result['comparison']['cluster_stability'] > 0.8:
+                f.write("[OK] High stability - DTW and CDTW produce similar results.\n")
+                f.write("     Use CDTW for faster computation with similar quality.\n")
+            elif comparison_result['comparison']['cluster_stability'] > 0.5:
+                f.write("[WARN] Moderate stability - some cluster assignments differ.\n")
+                f.write("       Review both clusterings for your specific analysis.\n")
+            else:
+                f.write("[WARN] Low stability - clusterings differ significantly.\n")
+                f.write("       Standard DTW may capture more nuanced patterns.\n")
+        
+        print(f"\n✅ Saved: cluster_assignments_DTW.csv")
+        print(f"✅ Saved: cluster_assignments_CDTW.csv")
+        print(f"✅ Saved: clustering_comparison.txt")
     
     # =========================================================================
     # 3. TOP VS FLOP ANALYSIS
@@ -796,6 +1034,19 @@ class TimeSeriesAnalyzer:
                 })
                 cluster_df.to_csv(self.output_dir / 'cluster_assignments.csv', index=False)
                 print(f"✅ Cluster assignments saved")
+            
+            # =====================================================================
+            # 3b. DTW vs CDTW COMPARISON
+            # =====================================================================
+            print("\n📊 Comparing DTW vs CDTW clustering...")
+            
+            comparison_result = self.compare_dtw_cdtw_clustering(
+                trajectories, n_clusters=3, window_ratio=0.1
+            )
+            
+            if comparison_result:
+                self.save_clustering_comparison(comparison_result, str(self.output_dir))
+
         
         # =====================================================================
         # 4. FREQUENCY ANALYSIS

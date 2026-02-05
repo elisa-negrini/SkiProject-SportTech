@@ -166,9 +166,11 @@ class CorrelationAnalyzer:
         
         # Merge with old metrics (for comparison)
         if not self.df_old_metrics.empty:
+            # Select only columns that exist in df_old_metrics
+            old_cols = ['jump_id', 'avg_body_ski_angle', 'avg_v_style_front', 'avg_telemark_leg_angle']
+            existing_cols = [c for c in old_cols if c in self.df_old_metrics.columns]
             df_merged = df_merged.merge(
-                self.df_old_metrics[['jump_id', 'avg_body_ski_angle', 'avg_v_style_front', 
-                                     'flight_stability_std', 'avg_telemark_leg_angle']],
+                self.df_old_metrics[existing_cols],
                 on='jump_id',
                 how='left',
                 suffixes=('', '_old')
@@ -187,14 +189,14 @@ class CorrelationAnalyzer:
         Compute correlation matrix between metrics and scores.
         """
         
-        # Define metrics to analyze
+        # Define metrics to analyze (cleaned feature set)
         metric_cols = [
-            # New time-series metrics
-            'knee_peak_velocity', 'knee_mean_velocity', 'knee_extension_range',
-            'flight_std', 'flight_range', 'flight_jitter', 'flight_trend',
-            'landing_hip_drop', 'landing_hip_velocity', 'landing_smoothness_score',
-            # Old metrics (for comparison)
-            'avg_body_ski_angle', 'avg_v_style_front', 'flight_stability_std', 'avg_telemark_leg_angle'
+            # Core time-series metrics
+            'knee_peak_velocity',
+            'flight_std', 'flight_jitter',
+            'landing_hip_velocity',
+            # Core geometric metrics
+            'avg_body_ski_angle', 'avg_v_style_front', 'avg_telemark_leg_angle'
         ]
         
         # Target columns

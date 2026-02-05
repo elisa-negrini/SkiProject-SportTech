@@ -1,0 +1,16 @@
+# Ignore all generated visualization images
+# These are generated locally and should not be committed to git
+
+# All PNG files in this directory and subdirectories
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+
+# Keep the .gitignore file
+!.gitignore
+
+# Keep Python scripts
+!*.py

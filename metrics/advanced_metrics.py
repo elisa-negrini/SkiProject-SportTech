@@ -7,17 +7,18 @@ Metrics are designed to be robust to perspective distortion from diagonal camera
 
 METRICS IMPLEMENTED:
 --------------------
-1. Takeoff Dynamics: Peak velocity, acceleration, smoothness at take-off
-2. Takeoff Timing: Timing precision relative to ramp edge
-3. Telemark Quality: Scissor distance, stability, absorption rate
+1. Takeoff Dynamics: Peak velocity, timing precision at take-off
+2. Telemark Quality: Scissor distance, stability, absorption rate
 
-REMOVED METRICS (unreliable with diagonal camera):
+REMOVED METRICS (unreliable/redundant):
 --------------------------------------------------
 - Ski Jitter: Too sensitive to perspective
 - Body Rotation: False positives from camera movement
 - Arm Stability: Unreliable keypoints for hands
 - V-Style Dynamics: Redundant with core V-style
 - Body Compactness: Ambiguous definition
+- takeoff_acceleration_peak: Redundant with peak_velocity (highly correlated)
+- takeoff_smoothness: Not interpretable (arbitrary 1/std scale)
 
 Output:
 - metrics/advanced_metrics/advanced_metrics_summary.csv
@@ -75,7 +76,7 @@ class AdvancedMetricsCalculator:
         # Validity ranges
         self.validity_ranges = {
             'knee_velocity': (50.0, 800.0),      # deg/sec
-            'telemark_scissor': (0.0, 0.15),     # normalized units
+            'telemark_scissor': (0.0, 0.30),     # normalized units
             'landing_absorption': (-2.0, 2.0),   # normalized units/sec
         }
         
@@ -199,9 +200,7 @@ class AdvancedMetricsCalculator:
         if len(knee_angles) < 5:
             return {
                 'takeoff_timing_offset': np.nan,
-                'takeoff_peak_velocity': np.nan,
-                'takeoff_acceleration_peak': np.nan,
-                'takeoff_smoothness': np.nan
+                'takeoff_peak_velocity': np.nan
             }
         
         # Convert to sorted series
@@ -233,17 +232,9 @@ class AdvancedMetricsCalculator:
         peak_velocity = velocity[peak_idx] * self.fps
         peak_velocity = self.apply_validity_range(peak_velocity, 'knee_velocity')
         
-        # Peak acceleration
-        acceleration_peak = np.max(np.abs(acceleration)) * self.fps * self.fps
-        
-        # Smoothness: inverse of acceleration variability
-        smoothness = 1.0 / (np.std(acceleration) + 0.001)
-        
         return {
             'takeoff_timing_offset': timing_offset,
-            'takeoff_peak_velocity': peak_velocity,
-            'takeoff_acceleration_peak': acceleration_peak,
-            'takeoff_smoothness': smoothness
+            'takeoff_peak_velocity': peak_velocity
         }
     
     # =========================================================================
@@ -366,8 +357,7 @@ class AdvancedMetricsCalculator:
             takeoff_metrics = self.compute_takeoff_dynamics(jump_df, takeoff_frame)
         else:
             takeoff_metrics = {k: np.nan for k in [
-                'takeoff_timing_offset', 'takeoff_peak_velocity',
-                'takeoff_acceleration_peak', 'takeoff_smoothness'
+                'takeoff_timing_offset', 'takeoff_peak_velocity'
             ]}
         result.update(takeoff_metrics)
         

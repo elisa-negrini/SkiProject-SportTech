@@ -209,9 +209,7 @@ class TimeSeriesMetricsCalculator:
         if len(window_angles) < 3:
             return {
                 'knee_peak_velocity': np.nan,
-                'knee_mean_velocity': np.nan,
-                'knee_angle_at_takeoff': np.nan,
-                'knee_extension_range': np.nan
+                'knee_angle_at_takeoff': np.nan
             }
         
         # Compute derivative (angular velocity in deg/frame)
@@ -234,21 +232,18 @@ class TimeSeriesMetricsCalculator:
         
         # Peak velocity (positive = extension)
         peak_velocity = np.nanmax(velocity_per_sec)
-        mean_velocity = np.nanmean(velocity_per_sec[velocity_per_sec > 0]) if np.any(velocity_per_sec > 0) else np.nan
         
         # Angle at take-off
         takeoff_angle = np.nan
         if takeoff_frame in window_angles.index:
             takeoff_angle = window_angles[takeoff_frame]
         
-        # Extension range (max - min in window)
-        extension_range = np.nanmax(angles_array) - np.nanmin(angles_array)
+        # REMOVED: knee_mean_velocity (redundant with peak)
+        # REMOVED: knee_extension_range (correlated with peak velocity)
         
         return {
             'knee_peak_velocity': peak_velocity,
-            'knee_mean_velocity': mean_velocity,
-            'knee_angle_at_takeoff': takeoff_angle,
-            'knee_extension_range': extension_range
+            'knee_angle_at_takeoff': takeoff_angle
         }
     
     # =========================================================================
@@ -325,41 +320,27 @@ class TimeSeriesMetricsCalculator:
         if len(flight_angles) < 3:
             return {
                 'flight_std': np.nan,
-                'flight_range': np.nan,
                 'flight_mean_bsa': np.nan,
-                'flight_trend': np.nan,
                 'flight_jitter': np.nan
             }
         
         # Standard deviation (main frozenness metric)
         flight_std = flight_angles.std()
         
-        # Range (max - min)
-        flight_range = flight_angles.max() - flight_angles.min()
-        
         # Mean BSA
         flight_mean = flight_angles.mean()
         
-        # Trend (slope of linear fit - is athlete opening or closing?)
-        frames = flight_angles.index.values
-        angles = flight_angles.values
-        
-        try:
-            slope, _ = np.polyfit(frames, angles, 1)
-            # Convert to deg/frame then to deg/sec
-            trend = slope * self.fps
-        except:
-            trend = np.nan
-        
         # Jitter: std of frame-to-frame changes (high frequency instability)
+        angles = flight_angles.values
         diffs = np.diff(angles)
         jitter = np.std(diffs) if len(diffs) > 1 else np.nan
         
+        # REMOVED: flight_range (redundant with flight_std, r > 0.85)
+        # REMOVED: flight_trend (low predictive power)
+        
         return {
             'flight_std': flight_std,
-            'flight_range': flight_range,
             'flight_mean_bsa': flight_mean,
-            'flight_trend': trend,
             'flight_jitter': jitter
         }
     
@@ -417,17 +398,12 @@ class TimeSeriesMetricsCalculator:
         landing_knee = knee_series[mask_knee].dropna()
         
         result = {
-            'landing_hip_drop': np.nan,
             'landing_hip_velocity': np.nan,
-            'landing_knee_compression': np.nan,
-            'landing_smoothness_score': np.nan
+            'landing_knee_compression': np.nan
         }
         
         if len(landing_hip) >= 3:
-            # Total hip drop in window
-            result['landing_hip_drop'] = landing_hip.iloc[0] - landing_hip.min()
-            
-            # Velocity of descent (derivative)
+            # Velocity of descent (derivative) - KEY METRIC (r=-0.65 with Style_Score)
             hip_velocity = np.gradient(landing_hip.values) * self.fps
             result['landing_hip_velocity'] = np.abs(hip_velocity).mean()
         
@@ -435,12 +411,8 @@ class TimeSeriesMetricsCalculator:
             # Knee compression (how much knee bends after landing)
             result['landing_knee_compression'] = landing_knee.iloc[0] - landing_knee.min()
         
-        # Smoothness score: combination metric
-        # Lower velocity + more knee bend = smoother
-        if not np.isnan(result['landing_hip_velocity']) and not np.isnan(result['landing_knee_compression']):
-            # Normalize and combine (higher = smoother)
-            # Knee compression is good, velocity is bad
-            result['landing_smoothness_score'] = result['landing_knee_compression'] / (result['landing_hip_velocity'] + 1)
+        # REMOVED: landing_hip_drop (depends on jump height, not technique)
+        # REMOVED: landing_smoothness_score (engineered feature, model can learn combination)
         
         return result
     
@@ -477,9 +449,7 @@ class TimeSeriesMetricsCalculator:
         else:
             result.update({
                 'knee_peak_velocity': np.nan,
-                'knee_mean_velocity': np.nan,
-                'knee_angle_at_takeoff': np.nan,
-                'knee_extension_range': np.nan
+                'knee_angle_at_takeoff': np.nan
             })
         
         # --- METRIC 2: Flight Frozenness (if BSA window available) ---
@@ -504,9 +474,7 @@ class TimeSeriesMetricsCalculator:
         else:
             result.update({
                 'flight_std': np.nan,
-                'flight_range': np.nan,
                 'flight_mean_bsa': np.nan,
-                'flight_trend': np.nan,
                 'flight_jitter': np.nan
             })
         
@@ -523,10 +491,8 @@ class TimeSeriesMetricsCalculator:
             result.update(landing_metrics)
         else:
             result.update({
-                'landing_hip_drop': np.nan,
                 'landing_hip_velocity': np.nan,
-                'landing_knee_compression': np.nan,
-                'landing_smoothness_score': np.nan
+                'landing_knee_compression': np.nan
             })
         
         return result
@@ -591,7 +557,7 @@ class TimeSeriesMetricsCalculator:
         print("SUMMARY STATISTICS")
         print("="*60)
         
-        metrics_to_show = ['knee_peak_velocity', 'flight_std', 'flight_jitter', 'landing_smoothness_score']
+        metrics_to_show = ['knee_peak_velocity', 'flight_std', 'flight_jitter', 'landing_hip_velocity']
         for metric in metrics_to_show:
             if metric in df_summary.columns:
                 valid = df_summary[metric].dropna()

@@ -10,3 +10,14 @@ torchvision
 absl-py
 natsort
 pandas
+
+# Visualization
+seaborn
+Pillow
+
+# ML & Statistics
+scikit-learn
+scipy
+
+# Time-series clustering
+tslearn

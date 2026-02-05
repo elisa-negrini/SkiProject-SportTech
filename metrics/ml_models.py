@@ -34,6 +34,51 @@ from typing import Dict, List, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+# =============================================================================
+# FEATURE EXCLUSION LIST
+# =============================================================================
+# Features excluded from ML models for various reasons
+EXCLUDED_FEATURES = [
+    # -------------------------------------------------------------------------
+    # DATA LEAKAGE - These derive directly from target scores
+    # -------------------------------------------------------------------------
+    'normalized_distance',     # Physical_Score is computed from distance
+    'AthleteDistance',         # Same as above
+    'DistancePoints',          # Same as above
+    
+    # -------------------------------------------------------------------------
+    # DEMOGRAPHIC BIAS - Not biomechanical, can introduce bias
+    # -------------------------------------------------------------------------
+    'AthleteGender',           # Gender should not predict style score
+    'AthleteNat',              # Nationality bias
+    'HillLocation',            # Event-specific bias
+    'CompetitionDate',         # Temporal bias
+    
+    # -------------------------------------------------------------------------
+    # REDUNDANT FEATURES - Correlated with better alternatives
+    # -------------------------------------------------------------------------
+    'flight_range',            # Redundant with flight_std (r~0.85)
+    'flight_trend',            # Low predictive power
+    'knee_mean_velocity',      # Redundant with knee_peak_velocity
+    'knee_extension_range',    # Redundant with knee_peak_velocity
+    'takeoff_acceleration_peak',  # Redundant with takeoff_peak_velocity (removed from advanced_metrics)
+    'takeoff_smoothness',      # Not interpretable - removed from advanced_metrics
+    'flight_stability_std',    # Redundant with flight_std (removed from core_metrics)
+    'avg_telemark_offset_x',   # Redundant with telemark_proj_ski (removed from core_metrics)
+    'landing_absorption_rate', # Often NaN, less reliable
+    'landing_hip_drop',        # Depends on jump height, not technique
+    'landing_smoothness_score', # Engineered feature, model can learn combination
+    
+    # -------------------------------------------------------------------------
+    # IDENTIFIERS - Not features
+    # -------------------------------------------------------------------------
+    'jump_id',
+    'AthleteName',
+    'AthleteSurname',
+    'AthleteScore',            # This is Style + Physical (leakage)
+    'ID',
+]
+
 # Core ML imports
 try:
     from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
@@ -233,16 +278,73 @@ class SkiJumpingMLModels:
         df = self._engineer_features(df)
         
         # -----------------------------------------------------------------
-        # IDENTIFY FEATURE COLUMNS
+        # IDENTIFY FEATURE COLUMNS (with exclusions)
         # -----------------------------------------------------------------
-        # Exclude non-feature columns
+        # Base exclusions
         exclude_cols = ['jump_id'] + self.target_columns + ['AthleteScore', 'HillHS', 'HillK']
-        self.feature_columns = [c for c in df.columns if c not in exclude_cols 
-                                and df[c].dtype in ['float64', 'int64', 'float32', 'int32']]
+        
+        # Add global EXCLUDED_FEATURES
+        all_exclusions = set(exclude_cols + EXCLUDED_FEATURES)
+        
+        # Select only numeric features not in exclusion list
+        self.feature_columns = [
+            c for c in df.columns 
+            if c not in all_exclusions 
+            and df[c].dtype in ['float64', 'int64', 'float32', 'int32']
+        ]
         
         print(f"📊 Feature columns: {len(self.feature_columns)}")
         
+        # Generate feature selection report
+        self._generate_feature_report(df)
+        
         return df
+    
+    def _generate_feature_report(self, df: pd.DataFrame):
+        """Generate a report of selected features with availability stats."""
+        
+        report_file = self.output_dir / 'feature_selection_report.txt'
+        
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write("=" * 60 + "\n")
+            f.write("FEATURE SELECTION REPORT\n")
+            f.write("=" * 60 + "\n\n")
+            
+            # Excluded features
+            f.write("EXCLUDED FEATURES:\n")
+            f.write("-" * 40 + "\n")
+            for feat in EXCLUDED_FEATURES:
+                if feat in ['normalized_distance', 'AthleteDistance', 'DistancePoints']:
+                    reason = "data leakage (derives from target)"
+                elif feat in ['AthleteGender', 'AthleteNat', 'HillLocation', 'CompetitionDate']:
+                    reason = "demographic bias"
+                elif feat in ['flight_range', 'knee_mean_velocity', 'knee_extension_range', 
+                              'takeoff_acceleration_peak', 'landing_absorption_rate']:
+                    reason = "redundant with better alternative"
+                else:
+                    reason = "identifier"
+                f.write(f"  - {feat}: {reason}\n")
+            
+            f.write("\n\nSELECTED FEATURES:\n")
+            f.write("-" * 40 + "\n")
+            
+            # Count availability for each feature
+            feature_stats = []
+            for feat in self.feature_columns:
+                n_valid = df[feat].notna().sum()
+                n_total = len(df)
+                pct = 100 * n_valid / n_total
+                feature_stats.append((feat, n_valid, n_total, pct))
+            
+            # Sort by availability
+            feature_stats.sort(key=lambda x: x[3], reverse=True)
+            
+            for feat, n_valid, n_total, pct in feature_stats:
+                f.write(f"  {feat}: {n_valid}/{n_total} jumps ({pct:.0f}%)\n")
+            
+            f.write(f"\n\nTOTAL FEATURES USED: {len(self.feature_columns)}\n")
+        
+        print(f"✅ Feature report saved: {report_file}")
     
     def _engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
