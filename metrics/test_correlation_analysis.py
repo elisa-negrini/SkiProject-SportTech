@@ -45,6 +45,7 @@ class CorrelationAnalyzer:
         # Input metrics (from subfolders)
         self.metrics_file = self.base_path / 'metrics' / 'timeseries_metrics' / 'timeseries_summary.csv'
         self.old_metrics_file = self.base_path / 'metrics' / 'core_metrics' / 'metrics_summary_per_jump.csv'
+        self.advanced_metrics_file = self.base_path / 'metrics' / 'advanced_metrics' / 'advanced_metrics_summary.csv'
         
         # Output (to correlations subfolder)
         self.output_dir = self.base_path / 'metrics' / 'correlations'
@@ -79,6 +80,14 @@ class CorrelationAnalyzer:
             print(f"✅ Loaded old metrics: {len(self.df_old_metrics)} jumps")
         else:
             self.df_old_metrics = pd.DataFrame()
+        
+        # Load advanced metrics
+        if self.advanced_metrics_file.exists():
+            self.df_advanced_metrics = pd.read_csv(self.advanced_metrics_file)
+            print(f"✅ Loaded advanced metrics: {len(self.df_advanced_metrics)} jumps")
+        else:
+            print(f"⚠️ Advanced metrics not found")
+            self.df_advanced_metrics = pd.DataFrame()
         
         return True
     
@@ -154,33 +163,58 @@ class CorrelationAnalyzer:
     def merge_data(self, df_scores: pd.DataFrame) -> pd.DataFrame:
         """Merge scores with metrics."""
         
+        # Start with scores
+        df_merged = df_scores.copy()
+        
         # Merge with time-series metrics
         if not self.df_metrics.empty:
-            df_merged = df_scores.merge(
+            print(f"\n📊 Merging timeseries metrics...")
+            print(f"   Before: {len(df_merged)} rows, {len(df_merged.columns)} cols")
+            df_merged = df_merged.merge(
                 self.df_metrics, 
                 on='jump_id', 
                 how='left'
             )
-        else:
-            df_merged = df_scores.copy()
+            print(f"   After: {len(df_merged)} rows, {len(df_merged.columns)} cols")
+            print(f"   Timeseries data present: {df_merged['flight_std'].notna().sum() if 'flight_std' in df_merged.columns else 0} jumps")
         
-        # Merge with old metrics (for comparison)
+        # Merge with core metrics
         if not self.df_old_metrics.empty:
+            print(f"\n📊 Merging core metrics...")
+            print(f"   Before: {len(df_merged)} rows, {len(df_merged.columns)} cols")
             # Select only columns that exist in df_old_metrics
-            old_cols = ['jump_id', 'avg_body_ski_angle', 'avg_v_style_front', 'avg_telemark_leg_angle']
+            old_cols = ['jump_id', 'avg_body_ski_angle', 'avg_v_style_front', 'avg_v_style_back',
+                       'takeoff_knee_angle', 'avg_symmetry_index_back',
+                       'avg_telemark_proj_ski', 'avg_telemark_depth_ratio', 'avg_telemark_leg_angle']
             existing_cols = [c for c in old_cols if c in self.df_old_metrics.columns]
             df_merged = df_merged.merge(
                 self.df_old_metrics[existing_cols],
                 on='jump_id',
                 how='left',
-                suffixes=('', '_old')
+                suffixes=('', '_core')
             )
+            print(f"   After: {len(df_merged)} rows, {len(df_merged.columns)} cols")
+            print(f"   Core data present: {df_merged['avg_body_ski_angle'].notna().sum() if 'avg_body_ski_angle' in df_merged.columns else 0} jumps")
+        
+        # Merge with advanced metrics
+        if not self.df_advanced_metrics.empty:
+            print(f"\n📊 Merging advanced metrics...")
+            print(f"   Before: {len(df_merged)} rows, {len(df_merged.columns)} cols")
+            df_merged = df_merged.merge(
+                self.df_advanced_metrics,
+                on='jump_id',
+                how='left',
+                suffixes=('', '_adv')
+            )
+            print(f"   After: {len(df_merged)} rows, {len(df_merged.columns)} cols")
+            print(f"   Advanced data present: {df_merged['takeoff_peak_velocity'].notna().sum() if 'takeoff_peak_velocity' in df_merged.columns else 0} jumps")
         
         # Save merged dataset
         df_merged.to_csv(self.output_merged, index=False)
         print(f"\n✅ Merged data saved: {self.output_merged}")
         print(f"   Total rows: {len(df_merged)}")
-        print(f"   Rows with metrics: {df_merged['flight_std'].notna().sum() if 'flight_std' in df_merged.columns else 0}")
+        print(f"   Total columns: {len(df_merged.columns)}")
+        print(f"   Rows with ANY metrics: {df_merged.iloc[:, 7:].notna().any(axis=1).sum()}")
         
         return df_merged
     
@@ -189,14 +223,19 @@ class CorrelationAnalyzer:
         Compute correlation matrix between metrics and scores.
         """
         
-        # Define metrics to analyze (cleaned feature set)
+        # Define ALL metrics to analyze (complete feature set)
         metric_cols = [
-            # Core time-series metrics
-            'knee_peak_velocity',
-            'flight_std', 'flight_jitter',
-            'landing_hip_velocity',
+            # Timeseries metrics
+            'knee_peak_velocity', 'knee_angle_at_takeoff',
+            'flight_std', 'flight_jitter', 'flight_mean_bsa',
+            'landing_hip_velocity', 'landing_knee_compression',
             # Core geometric metrics
-            'avg_body_ski_angle', 'avg_v_style_front', 'avg_telemark_leg_angle'
+            'avg_body_ski_angle', 'avg_v_style_front', 'avg_v_style_back',
+            'takeoff_knee_angle', 'avg_symmetry_index_back',
+            'avg_telemark_proj_ski', 'avg_telemark_depth_ratio', 'avg_telemark_leg_angle',
+            # Advanced metrics
+            'takeoff_timing_offset', 'takeoff_peak_velocity',
+            'telemark_scissor_mean', 'telemark_stability', 'landing_absorption_rate'
         ]
         
         # Target columns
