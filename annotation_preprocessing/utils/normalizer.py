@@ -10,10 +10,9 @@ import glob
 
 
 class Normalizer:
-    """
-    Normalizza le annotazioni usando:
-    1. Metodo Hybrid: Torso + Leg + Shoulders (definito in calculate_scale_and_root)
-    2. Scaling Fisso: Mappa un range fisico fisso (es. ±3.0) in [0, 1].
+    """Normalize annotations using:
+    1. Hybrid scale (torso + leg + shoulders)
+    2. Fixed scaling to map physical range into [0,1]
     """
     
     def __init__(self):
@@ -29,7 +28,7 @@ class Normalizer:
         }
     
     def get_point(self, kpts, name, kpt_names):
-        """Recupera (x, y) dato il nome del keypoint."""
+        """Return (x,y) for a keypoint name."""
         try:
             idx = kpt_names.index(name)
         except ValueError:
@@ -46,21 +45,18 @@ class Normalizer:
         return np.array([x, y])
     
     def get_dist(self, p1, p2):
-        """Calcola distanza euclidea tra due punti."""
+        """Compute Euclidean distance between two points."""
         if p1 is None or p2 is None:
             return 0.0
         return np.linalg.norm(p1 - p2)
     
     def calculate_scale_and_root(self, kpts, kpt_names):
-        """
-        Calcola la SCALA IBRIDA (Torso + Leg + Shoulders) e il punto ROOT (bacino).
-        Questa è la parte 'Anatomica' che gestisce la prospettiva.
-        """
-        # Recupera punti chiave
+        """Compute hybrid scale and root (pelvis)."""
+        # Get keypoints
         pts = {k: self.get_point(kpts, v, kpt_names) 
                for k, v in self.anchor_ids.items()}
         
-        # --- 1. Calcolo Centro Bacino (Root) ---
+        # 1. Compute root (pelvis)
         root = None
         if pts['r_hip'] is not None and pts['l_hip'] is not None:
             root = (pts['r_hip'] + pts['l_hip']) / 2.0
@@ -74,15 +70,15 @@ class Normalizer:
         
         # --- 2. Calcolo Lunghezze Segmenti (Hybrid) ---
         
-        # Torso (Collo -> Bacino)
+        # Torso (neck -> pelvis)
         torso_top = pts['neck']
         if torso_top is None and pts['r_shoulder'] is not None and pts['l_shoulder'] is not None:
             torso_top = (pts['r_shoulder'] + pts['l_shoulder']) / 2
         
         len_torso = self.get_dist(torso_top, root)
-        if len_torso == 0: len_torso = 1.0 # Fallback minimo
+        if len_torso == 0: len_torso = 1.0 # minimal fallback
         
-        # Gambe (Media Destra/Sinistra e somma segmenti)
+        # Legs (sum of thigh+shin, take longest visible)
         len_thigh_r = self.get_dist(pts['r_hip'], pts['r_knee'])
         len_shin_r = self.get_dist(pts['r_knee'], pts['r_ankle'])
         len_leg_r = len_thigh_r + len_shin_r
@@ -91,14 +87,14 @@ class Normalizer:
         len_shin_l = self.get_dist(pts['l_knee'], pts['l_ankle'])
         len_leg_l = len_thigh_l + len_shin_l
         
-        # Usa la gamba più lunga visibile
+        # Use longest visible leg
         len_leg_max = max(len_leg_r, len_leg_l)
-        if len_leg_max == 0: len_leg_max = len_torso * 1.2 # Fallback
+        if len_leg_max == 0: len_leg_max = len_torso * 1.2 # fallback
         
-        # Spalle
+        # Shoulders
         len_shoulders = self.get_dist(pts['r_shoulder'], pts['l_shoulder'])
         
-        # --- SOMMA IBRIDA ---
+        # Hybrid sum
         scale_val = len_torso + len_leg_max + len_shoulders
         
         if scale_val == 0: scale_val = 1.0
@@ -106,18 +102,12 @@ class Normalizer:
         return root, scale_val
     
     def normalize_annotation(self, ann, kpt_names, root, scale):
-        """
-        Applica la normalizzazione e lo SCALING FISSO.
-        Sostituisce la logica del bounding box dinamico.
-        """
+        """Apply anatomical normalization and fixed scaling."""
         kpts = ann['keypoints'].copy()
         
-        # --- CONFIGURAZIONE SCALING FISSO ---
-        # 3.0 significa: il grafico va da -3.0 a +3.0 rispetto al bacino.
-        # Questo spazio è sufficiente per contenere sci lunghi (Flight) 
-        # senza che l'atleta diventi troppo piccolo.
-        FIXED_LIMIT = 2.0  
-        
+        # Fixed scaling settings
+        # FIXED_LIMIT defines range [-2.0, +2.0] mapped to [0,1]
+        FIXED_LIMIT = 2.0          
         # Fattore per schiacciare il range [-LIMIT, +LIMIT] dentro [0, 1]
         # Formula: new_val = 0.5 + (old_val / (2 * LIMIT))
         scale_factor = 1.0 / (2 * FIXED_LIMIT)
@@ -143,8 +133,7 @@ class Normalizer:
                 kpts[i] = x_final
                 kpts[i + 1] = y_final
             else:
-                # Punti non visibili o invalidi: li mettiamo al centro (0.5)
-                # o a 0 se preferisci, ma 0.5 è neutro rispetto al bacino.
+                # Non-visible or invalid points: place at center (0.5)
                 kpts[i] = 0.5
                 kpts[i + 1] = 0.5
         
@@ -152,9 +141,7 @@ class Normalizer:
         return ann
     
     def process(self, jump_num):
-        """
-        Processa un singolo salto: legge JSON interpolato -> scrive JSON normalizzato.
-        """
+        """Process a single jump: read interpolated JSON -> write normalized JSON."""
         jump_id = f"JP{jump_num:04d}"
         jump_dir = self.dataset_dir / jump_id
         
@@ -162,7 +149,7 @@ class Normalizer:
         output_file = jump_dir / "train" / f"annotations_normalized_jump{jump_num}.coco.json"
         
         if not input_file.exists():
-            print(f"   ⚠️  File non trovato: {input_file}")
+            print(f"   ⚠️  File not found: {input_file}")
             return False
         
         try:
@@ -182,20 +169,20 @@ class Normalizer:
                 # Calcola Root e Scala (Hybrid)
                 root, scale = self.calculate_scale_and_root(ann['keypoints'], kpt_names)
                 
-                if root is None: continue # Salta frame senza bacino
+                if root is None: continue # skip frame without pelvis
                 
-                # Applica Normalizzazione Fissa
+                # Apply normalization
                 self.normalize_annotation(ann, kpt_names, root, scale)
                 normalized_count += 1
             
             with open(output_file, 'w') as f:
                 json.dump(data, f, indent=2)
             
-            print(f"   ✅ Normalizzati {normalized_count} frame -> {output_file.name}")
+            print(f"   ✅ Normalized {normalized_count} frames -> {output_file.name}")
             return True
             
         except Exception as e:
-            print(f"   ❌ Errore normalizzazione: {e}")
+            print(f"   ❌ Normalization error: {e}")
             return False
 
     def visualize_normalization(self, jump_num):
@@ -211,7 +198,7 @@ class Normalizer:
         output_image = jump_dir / "train" / f"visualization_normalized_grid_jump{jump_num}.png"
         
         if not input_file.exists():
-            print(f"   ⚠️  File normalizzato non trovato: {input_file}")
+            print(f"   ⚠️  Normalized file not found: {input_file}")
             return False
         
         try:
@@ -229,7 +216,7 @@ class Normalizer:
             num_frames = len(annotations)
             
             if num_frames == 0:
-                print("   ⚠️  Nessuna annotazione trovata.")
+                print("   ⚠️  No annotations found.")
                 return False
 
             # --- SETUP GRIGLIA ---
@@ -301,11 +288,11 @@ class Normalizer:
             plt.savefig(str(output_image), dpi=100)
             plt.close()
             
-            print(f"   ✅ Visualizzazione Griglia salvata: {output_image.name}")
+            print(f"   ✅ Grid visualization saved: {output_image.name}")
             return True
             
         except Exception as e:
-            print(f"   ❌ Errore visualizzazione: {e}")
+            print(f"   ❌ Visualization error: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -316,17 +303,17 @@ class Normalizer:
             Scansiona tutti i file JSON normalizzati e crea un unico CSV nella root.
             Contiene: jump_id, frame_name, e tutte le coordinate (x,y,v).
             """
-            print(f"\n--- Creazione Dataset CSV ({output_name}) ---")
+            print(f"\n--- Creating dataset CSV ({output_name}) ---")
             
-            # Cerca tutti i file normalized ricorsivamente
+            # Find all normalized JSON files recursively
             pattern = str(self.dataset_dir / "**" / "*annotations_normalized*.json")
             files = glob.glob(pattern, recursive=True)
             
             if not files:
-                print("❌ Nessun file normalizzato trovato. Esegui prima la normalizzazione.")
+                print("❌ No normalized files found. Run normalization first.")
                 return False
                 
-            print(f"   Trovati {len(files)} file JSON.")
+            print(f"   Found {len(files)} JSON files.")
             
             all_rows = []
             
@@ -370,27 +357,27 @@ class Normalizer:
                         all_rows.append(row)
                         
                 except Exception as e:
-                    print(f"   ❌ Errore lettura {Path(json_file).name}: {e}")
+                    print(f"   ❌ Error reading {Path(json_file).name}: {e}")
 
             if not all_rows:
-                print("⚠️  Nessun dato estratto.")
+                print("⚠️  No data extracted.")
                 return False
 
-            # Crea DataFrame
+            # Create DataFrame
             df = pd.DataFrame(all_rows)
             
-            # Ordinamento intelligente (per Jump ID e Frame Name)
+            # Smart sorting (by jump_id and frame number)
             try:
-                # Estrae numero dal frame (es. 00350 da 00350.jpg) per ordinare
+                # Extract digits from frame (e.g. 00350 from 00350.jpg) for sorting
                 df['sort_frame'] = df['frame_name'].apply(lambda x: int(''.join(filter(str.isdigit, str(x)))))
                 df = df.sort_values(by=['jump_id', 'sort_frame'])
                 df = df.drop(columns=['sort_frame'])
             except:
                 df = df.sort_values(by=['jump_id', 'frame_name'])
             
-            # Salva CSV nella root
+            # Save CSV at root
             df.to_csv(output_name, index=False)
-            print(f"✅ Dataset salvato correttamente: {output_name}")
-            print(f"   Totale frame: {len(df)}")
-            print(f"   Colonne: {list(df.columns)[:5]} ...")
+            print(f"✅ Dataset saved: {output_name}")
+            print(f"   Total frames: {len(df)}")
+            print(f"   Columns: {list(df.columns)[:5]} ...")
             return True

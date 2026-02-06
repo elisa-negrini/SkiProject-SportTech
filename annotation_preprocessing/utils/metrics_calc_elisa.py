@@ -6,16 +6,14 @@ from pathlib import Path
 class MetricsCalculator:
     """
     Calculates biomechanical metrics from normalized keypoints:
-    - Angles (V-Style, Body-Ski Inclination, Takeoff knee angle)
-    - Symmetry (V-Style symmetry index)
+    - Angles (V-Style, Body-Ski, Takeoff knee angle, etc.)
+    - Symmetry (V-Style)
+    - Stability (standard deviations during flight)
     - Telemark (offset, projection, leg angle)
     
     Output:
-    - metrics/core_metrics/metrics_per_frame.csv: metrics per frame
-    - metrics/core_metrics/metrics_summary_per_jump.csv: aggregated metrics per jump
-    
-    Note: Body-Ski Angle (BSA) is converted to INCLINATION angle (0-40 deg)
-    where 0 deg = body parallel to skis, larger = more "open" position.
+    - metrics/metrics_per_frame.csv: metrics per frame
+    - metrics/metrics_summary_per_jump.csv: aggregated metrics per jump
     """
     
     def __init__(self):
@@ -23,20 +21,10 @@ class MetricsCalculator:
         self.keypoints_file = 'keypoints_dataset.csv'
         self.phases_file = 'jump_phases_SkiTB.csv'
         
-        # Output directory (now in subfolder)
-        self.metrics_dir = Path('metrics') / 'core_metrics'
+        # Output directory
+        self.metrics_dir = Path('metrics')
         self.output_detailed = self.metrics_dir / 'metrics_per_frame.csv'
         self.output_summary = self.metrics_dir / 'metrics_summary_per_jump.csv'
-        
-        # --- VALIDITY RANGES ---
-        # Values outside these ranges are set to NaN (physically implausible)
-        self.validity_ranges = {
-            'v_style_angle': (10.0, 60.0),       # V-style opening: 10-60 degrees
-            'body_ski_inclination': (0.0, 40.0), # Inclination: 0-40 degrees
-            'knee_angle': (100.0, 180.0),        # Knee angle: 100-180 degrees
-            'symmetry_index': (0.0, 30.0),       # Symmetry difference: 0-30 degrees
-            'telemark_leg_angle': (0.0, 90.0),   # Leg opening: 0-90 degrees
-        }
         
         # --- KEYPOINT MAPPING ---
         # Maps keypoint names -> ID in CSV (without 'kpt_' prefix)
@@ -58,52 +46,6 @@ class MetricsCalculator:
         
         # Create output directory if it doesn't exist
         self.metrics_dir.mkdir(parents=True, exist_ok=True)
-    
-    def apply_validity_range(self, value: float, metric_type: str) -> float:
-        """
-        Apply validity range filter to a metric value.
-        Returns NaN if value is outside the valid range.
-        
-        Args:
-            value: The metric value to validate
-            metric_type: Key in self.validity_ranges
-            
-        Returns:
-            float: Original value if valid, NaN otherwise
-        """
-        if pd.isna(value):
-            return np.nan
-        
-        if metric_type not in self.validity_ranges:
-            return value
-        
-        min_val, max_val = self.validity_ranges[metric_type]
-        if min_val <= value <= max_val:
-            return value
-        else:
-            return np.nan
-    
-    def convert_bsa_to_inclination(self, bsa_angle: float) -> float:
-        """
-        Convert Body-Ski Angle (vector angle 120-180 deg) to inclination (0-40 deg).
-        
-        In flight position:
-        - BSA ~ 180 deg means body nearly parallel to skis (inclination ~ 0 deg)
-        - BSA ~ 140 deg means body more "open" (inclination ~ 40 deg)
-        
-        Formula: inclination = 180 - BSA
-        
-        Args:
-            bsa_angle: Body-ski angle in degrees (typically 140-180)
-            
-        Returns:
-            float: Inclination angle (0-40 deg), NaN if invalid
-        """
-        if pd.isna(bsa_angle):
-            return np.nan
-        
-        inclination = 180.0 - bsa_angle
-        return self.apply_validity_range(inclination, 'body_ski_inclination')
 
     def load_data(self):
         """
@@ -360,8 +302,6 @@ class MetricsCalculator:
                         vec_ski_l = p_tip_l - p_tail_l
                         
                         angle_val = self.calculate_vector_angle(vec_ski_r, vec_ski_l)
-                        # Apply validity range filter
-                        angle_val = self.apply_validity_range(angle_val, 'v_style_angle')
                         
                         # Assign to correct column based on window
                         if is_back:
@@ -373,7 +313,7 @@ class MetricsCalculator:
                             p_pelvis = self.get_point(frame_row, 'center_pelvis')
                             
                             if p_neck is not None and p_pelvis is not None:
-                                # Body axis vector: from pelvis to neck (upward)
+                                # Vettore Asse Corporeo: Dal Bacino al Collo (verso l'alto)
                                 vec_axis = p_pelvis - p_neck
                                 
                                 # Compute angles: right ski vs axis, left ski vs axis
@@ -381,12 +321,10 @@ class MetricsCalculator:
                                 angle_r = self.calculate_vector_angle(vec_ski_r, vec_axis)
                                 angle_l = self.calculate_vector_angle(vec_ski_l, vec_axis)
                                 
+                                # Optional robustness check (cross product) for ski crossing
+                                # (Currently rely on absolute angle as main indicator)
                                 if not np.isnan(angle_r) and not np.isnan(angle_l):
-                                    sym_idx = abs(angle_r - angle_l)
-                                    # Apply validity range
-                                    res['symmetry_index_back'] = self.apply_validity_range(sym_idx, 'symmetry_index')
-                        else:
-                            res['v_style_angle_front'] = angle_val
+                                    res['symmetry_index_back'] = abs(angle_r - angle_l)
                         
 
                 if bsa_window and bsa_window[0] <= f_idx <= bsa_window[1]:
@@ -431,11 +369,9 @@ class MetricsCalculator:
                     elif vec_ski_r is not None: final_ski_vec = vec_ski_r
                     elif vec_ski_l is not None: final_ski_vec = vec_ski_l
                     
-                    # 4. Calculate Final Angle (convert to inclination 0-40 deg)
+                    # 4. Calculate Final Angle
                     if final_body_vec is not None and final_ski_vec is not None:
-                        raw_bsa = self.calculate_vector_angle(final_body_vec, final_ski_vec)
-                        # Convert raw BSA (120-180 deg) to inclination (0-40 deg)
-                        res['body_ski_angle'] = self.convert_bsa_to_inclination(raw_bsa)
+                        res['body_ski_angle'] = self.calculate_vector_angle(final_body_vec, final_ski_vec)
                 
                 # ========================================
                 # METRIC 3: TELEMARK (Landing)
@@ -485,8 +421,7 @@ class MetricsCalculator:
                             back_len_px = np.linalg.norm(p_neck - p_pelvis)
                             
                             # Compute ratio (if back length > 0)
-                            if back_len_px > 0 and 'telemark_proj_ski_raw' in res:
-                                res['telemark_depth_back_ratio'] = res['telemark_proj_ski_raw'] / back_len_px
+                            res['telemark_depth_back_ratio'] = res['telemark_proj_ski_raw'] / back_len_px
 
                     # 3. LEG OPENING ANGLE
                     # Angle between femurs (hip->knee)
@@ -497,8 +432,7 @@ class MetricsCalculator:
                     if all(x is not None for x in [p_hip_r, p_knee_r, p_hip_l, p_knee_l]):
                         vec_femur_r = p_knee_r - p_hip_r  # Right femur
                         vec_femur_l = p_knee_l - p_hip_l  # Left femur
-                        leg_angle = self.calculate_vector_angle(vec_femur_r, vec_femur_l)
-                        res['telemark_leg_angle'] = self.apply_validity_range(leg_angle, 'telemark_leg_angle')
+                        res['telemark_leg_angle'] = self.calculate_vector_angle(vec_femur_r, vec_femur_l)
 
                 # ========================================
                 # METRIC 4: TAKEOFF KNEE ANGLE
@@ -534,10 +468,9 @@ class MetricsCalculator:
                         vec_tibia = p_ank_l - p_knee_l
                         angles.append(self.calculate_vector_angle(vec_femur, vec_tibia))
                     
-                    # Average of angles (typically 140-170 deg) with validity check
+                    # Average of angles (typically ~140-170°)
                     if angles:
-                        avg_knee = np.mean(angles)
-                        res['takeoff_knee_angle'] = self.apply_validity_range(avg_knee, 'knee_angle')
+                        res['takeoff_knee_angle'] = np.mean(angles)
 
                 # --- FRAME SAVING ---
                 # Save only if we calculated at least one metric
@@ -586,33 +519,20 @@ class MetricsCalculator:
             row['avg_symmetry_index_back'] = group['symmetry_index_back'].mean()
             
             # Telemark
+            row['avg_telemark_offset_x'] = group['telemark_offset_x_raw'].mean()
             row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
             row['avg_telemark_depth_ratio'] = group['telemark_depth_back_ratio'].mean()
             row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
+            
+            # Stability (uses whichever is found: front or back)
+            # Combine the two columns in a temporary series to calculate total standard deviation
+            v_combined = group['v_style_angle_front'].fillna(group['v_style_angle_back'])
+            std_v = v_combined.std()
+            std_bsa = group['body_ski_angle'].std()
+            row['flight_stability_std'] = np.nanmean([std_v, std_bsa])
             
             summary_rows.append(row)
             
         df_summary = pd.DataFrame(summary_rows)
         df_summary.to_csv(self.output_summary, index=False)
         print(f"✅ Summary metrics saved: {self.output_summary}")
-
-
-if __name__ == "__main__":
-    print("=" * 70)
-    print("CORE METRICS CALCULATOR")
-    print("Ski Jumping Biomechanical Analysis")
-    print("=" * 70)
-    
-    calc = MetricsCalculator()
-    
-    # Load data first
-    if not calc.load_data():
-        print("\n❌ Failed to load data!")
-        exit(1)
-    
-    success = calc.process()
-    
-    if success:
-        print("\n✅ Processing complete!")
-    else:
-        print("\n❌ Processing failed!")

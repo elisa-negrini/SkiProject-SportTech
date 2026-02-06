@@ -10,6 +10,8 @@ torchvision
 absl-py
 natsort
 pandas
+streamlit
+seaborn
 
 # Visualization
 seaborn

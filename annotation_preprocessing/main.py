@@ -1,4 +1,3 @@
-from old_scripts import normalizer_elisa
 from utils.annotation_manager import AnnotationManager
 from utils.box_filter import filter_boxes
 from utils.interpolator import Interpolator

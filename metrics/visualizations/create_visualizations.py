@@ -42,6 +42,7 @@ import seaborn as sns
 import cv2
 from typing import Dict, List, Optional, Tuple
 import warnings
+from scipy.stats import pearsonr
 warnings.filterwarnings('ignore')
 
 # Set style
@@ -221,27 +222,61 @@ class VisualizationSuite:
             cv2.circle(img, (x, y), 5, color, -1)
         
         # Draw BSA angle if we have the points
-        if all(k in kpt_dict for k in ['neck', 'center_pelvis', 'r_ski_tip', 'l_ski_tip']):
-            # Body midpoint
-            neck = np.array(kpt_dict['neck'])
-            pelvis = np.array(kpt_dict['center_pelvis'])
-            body_mid = (neck + pelvis) / 2
+        if all(k in kpt_dict for k in ['neck', 'center_pelvis', 'r_ski_tip', 'l_ski_tip', 'r_ski_tail', 'l_ski_tail',
+                                         'r_shoulder', 'l_shoulder', 'r_hip', 'l_hip', 'r_knee', 'l_knee']):
             
-            # Ski midpoint
-            ski_tip_r = np.array(kpt_dict['r_ski_tip'])
-            ski_tip_l = np.array(kpt_dict['l_ski_tip'])
+            # RED VECTOR: Ski direction (from ski tail midpoint to ski tip midpoint)
+            ski_tip_r = np.array(kpt_dict['r_ski_tip'], dtype=np.float32)
+            ski_tip_l = np.array(kpt_dict['l_ski_tip'], dtype=np.float32)
+            ski_tail_r = np.array(kpt_dict['r_ski_tail'], dtype=np.float32)
+            ski_tail_l = np.array(kpt_dict['l_ski_tail'], dtype=np.float32)
             
-            # Draw body vector
-            cv2.arrowedLine(img, tuple(pelvis.astype(int)), tuple(neck.astype(int)), 
-                          (0, 255, 255), 3, tipLength=0.1)
+            ski_tip_mid = (ski_tip_r + ski_tip_l) / 2
+            ski_tail_mid = (ski_tail_r + ski_tail_l) / 2
             
-            # Add BSA angle text
-            if 'body_ski_inclination' in metrics:
-                bsa = metrics['body_ski_inclination']
-                if pd.notna(bsa):
-                    cv2.putText(img, f"BSA: {bsa:.1f}°", 
-                              (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 
-                              1, (255, 255, 0), 2)
+            cv2.arrowedLine(img, tuple(ski_tail_mid.astype(int)), tuple(ski_tip_mid.astype(int)), 
+                            (0, 0, 255), 3, tipLength=0.1)  # Red
+            
+            # BLUE VECTOR: Body regression line (neck, shoulders, pelvis, hips, knees)
+            body_points = np.array([
+                kpt_dict['neck'],
+                (np.array(kpt_dict['r_shoulder'], dtype=np.float32) + np.array(kpt_dict['l_shoulder'], dtype=np.float32)) / 2,
+                kpt_dict['center_pelvis'],
+                (np.array(kpt_dict['r_hip'], dtype=np.float32) + np.array(kpt_dict['l_hip'], dtype=np.float32)) / 2,
+                (np.array(kpt_dict['r_knee'], dtype=np.float32) + np.array(kpt_dict['l_knee'], dtype=np.float32)) / 2
+            ], dtype=np.float32)
+            
+            # Fit a line using least squares regression
+            x_coords = body_points[:, 0]
+            y_coords = body_points[:, 1]
+            z = np.polyfit(x_coords, y_coords, 1)
+            p = np.poly1d(z)
+            
+            # Get start and end points for the line (extend from top to bottom of body)
+            x_min, x_max = body_points[:, 0].min(), body_points[:, 0].max()
+            y_start = p(x_min)
+            y_end = p(x_max)
+            
+            cv2.arrowedLine(img, tuple([int(x_min), int(y_start)]), tuple([int(x_max), int(y_end)]), 
+                            (255, 0, 0), 3, tipLength=0.1)  # Blue
+            
+            # Calculate angle between ski vector and body vector
+            ski_vector = ski_tip_mid - ski_tail_mid
+            body_vector = np.array([x_max - x_min, y_end - y_start])
+            
+            cos_angle = np.dot(ski_vector, body_vector) / (np.linalg.norm(ski_vector) * np.linalg.norm(body_vector) + 1e-6)
+            angle_rad = np.arccos(np.clip(cos_angle, -1, 1))
+            angle_deg = np.degrees(angle_rad)
+            
+            # Add angle text comparing calculated vs CSV value
+            mid_point = (ski_tip_mid + ski_tail_mid) / 2
+            csv_value = metrics.get('body_ski_inclination', None)
+            if pd.notna(csv_value):
+                text = f"BSA Calc: {angle_deg:.1f}° | CSV: {csv_value:.1f}°"
+            else:
+                text = f"BSA Calc: {angle_deg:.1f}°"
+            cv2.putText(img, text, tuple(mid_point.astype(int)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         
         # Add V-style angle if available
         if 'avg_v_style_front' in metrics and pd.notna(metrics.get('avg_v_style_front')):
@@ -499,7 +534,7 @@ class VisualizationSuite:
                 ax.scatter(x, y, alpha=0.6, s=60, edgecolor='white', linewidth=0.5)
                 
                 # Fit line
-                from scipy.stats import pearsonr
+                
                 r, p = pearsonr(x, y)
                 z = np.polyfit(x, y, 1)
                 line_x = np.linspace(x.min(), x.max(), 100)
@@ -682,6 +717,61 @@ class VisualizationSuite:
         print("VISUALIZATION COMPLETE")
         print(f"Output: {self.output_dir}")
         print("=" * 60)
+    
+    def run_interactive(self):
+        """
+        Interactive menu for selecting which visualizations to generate.
+        """
+        print("\n" + "=" * 60)
+        print("SKI JUMPING VISUALIZATION SUITE - INTERACTIVE MODE")
+        print("=" * 60)
+        
+        print("\nAvailable visualizations:\n")
+        print("  1. Frame Overlays + Feature Importance (PRIORITY 1)")
+        print("     - Skeleton overlays with angle measurements")
+        print("     - ML model feature importance charts\n")
+        
+        print("  2. Metric Distributions + Correlation Scatterplots (PRIORITY 2)")
+        print("     - Histograms for each metric")
+        print("     - Metrics vs scores scatterplots\n")
+        
+        print("  3. Correlation Heatmap (PRIORITY 3)")
+        print("     - Correlation matrix between all metrics\n")
+        
+        print("  4. Timeline Plots (PRIORITY 4)")
+        print("     - Per-jump metric evolution over frames\n")
+        
+        print("  5. ALL (runs everything)\n")
+        
+        while True:
+            user_input = input("Select option(s) [1-5 or comma-separated, e.g., '1,3,5']: ").strip()
+            
+            if user_input == "5":
+                selected = [1, 2, 3, 4]
+                print("\n✓ Running ALL visualizations...\n")
+                break
+            
+            try:
+                selected = []
+                for item in user_input.split(','):
+                    item = item.strip()
+                    if item in ['1', '2', '3', '4']:
+                        selected.append(int(item))
+                    elif item == '5':
+                        selected = [1, 2, 3, 4]
+                        break
+                    else:
+                        raise ValueError("Invalid option")
+                
+                if selected:
+                    print(f"\n✓ Running: {', '.join([f'Priority {p}' for p in sorted(set(selected))])}\n")
+                    break
+                else:
+                    print("❌ No valid options selected. Try again.\n")
+            except (ValueError, IndexError):
+                print("❌ Invalid input. Please enter numbers 1-5 separated by commas.\n")
+        
+        self.run(priorities=list(set(selected)))
 
 
 if __name__ == "__main__":
@@ -702,5 +792,16 @@ if __name__ == "__main__":
         print("VISUALIZATION COMPLETE")
         print(f"Output: {suite.output_dir}")
         print("=" * 60)
+    elif "--interactive" in sys.argv or "-i" in sys.argv:
+        suite.run_interactive()
     else:
-        suite.run()
+        # Ask user: all or interactive?
+        print("\n" + "=" * 60)
+        print("SKI JUMPING VISUALIZATION SUITE")
+        print("=" * 60)
+        choice = input("\nRun ALL visualizations or choose SPECIFIC ones? (all/specific): ").strip().lower()
+        
+        if choice in ['specific', 'spec', 's']:
+            suite.run_interactive()
+        else:
+            suite.run()

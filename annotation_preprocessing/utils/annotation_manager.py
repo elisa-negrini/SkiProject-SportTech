@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 class AnnotationManager:
-    def __init__(self, raw_root='./raw_annotations/', output_root='dataset/annotations'):
+    def __init__(self, raw_root='annotation_preprocessing/raw_annotations/', output_root='./dataset/annotations'):
         self.raw_root = Path(raw_root)
         self.output_root = Path(output_root)
         self.source_ann_path = self.raw_root / 'train' / '_annotations.coco.json'

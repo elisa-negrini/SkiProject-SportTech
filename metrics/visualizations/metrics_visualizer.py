@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 class MetricsVisualizer:
-    def __init__(self, dataset_root='dataset', metrics_file='metrics/metrics_per_frame.csv'):
+    def __init__(self, dataset_root='dataset', metrics_file='metrics/core_metrics/metrics_per_frame.csv'):
         self.root = Path(dataset_root)
         self.metrics_path = Path(metrics_file)
         
@@ -202,7 +202,7 @@ class MetricsVisualizer:
             cv2.line(img, tuple(tr.astype(int)), tuple(pr.astype(int)), (0, 0, 255), 3)
             cv2.line(img, tuple(tl.astype(int)), tuple(pl.astype(int)), (0, 0, 255), 3)
             
-            self.draw_label_with_box(img, [f"Sym Index: {metric_val:.2f}", f"Frame: {f_idx}"], (10, img.shape[0] - 25))
+            #self.draw_label_with_box(img, [f"Sym Index: {metric_val:.2f}", f"Frame: {f_idx}"], (10, img.shape[0] - 25))
             
         return img
     
@@ -232,8 +232,8 @@ class MetricsVisualizer:
         lx = center[0] + np.cos(mid_ang_rad) * label_dist
         ly = center[1] + np.sin(mid_ang_rad) * label_dist
         
-        text = f"{val_deg:.0f}"
-        (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+        text = f"{val_deg:.2f}"
+        (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
         
         # Sfondo Nero
         tl = (int(lx - w/2 - 2), int(ly - h/2 - 2))
@@ -242,7 +242,7 @@ class MetricsVisualizer:
         
         # Testo del colore dell'area
         cv2.putText(img, text, (int(lx - w/2), int(ly + h/2)), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color_fill, 1, cv2.LINE_AA)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_fill, 2, cv2.LINE_AA)
         return img
 
     def draw_label_with_box(self, img, text_lines, pos_target):
@@ -309,20 +309,28 @@ class MetricsVisualizer:
             self.draw_dashed_line(img, tr, vertex, (100, 100, 255), 1, dash_len=8)
             self.draw_dashed_line(img, tl, vertex, (100, 100, 255), 1, dash_len=8)
             
-            # --- HALVED RADIUS ---
-            dist_tr = np.linalg.norm(tr - vertex)
-            dist_tl = np.linalg.norm(tl - vertex)
-            radius = int(min(dist_tr, dist_tl) * 0.5) # halved
+            ## --- MODIFICA RAGGIO (Verso le Punte) ---
+            # Calcola distanza dal vertice alle PUNTE (pr, pl) invece che alle code
+            dist_pr = np.linalg.norm(pr - vertex)
+            dist_pl = np.linalg.norm(pl - vertex)
             
-            # Disegna Arco con il nuovo metodo (Richiesta 4 integrata)
-            vec_r = tr - vertex
-            vec_l = tl - vertex
+            # Usa il 60% della distanza verso la punta (o un'altra % a piacere)
+            radius = int(min(dist_pr, dist_pl) * 0.6) 
+            
+            # (Opzionale) Limita il raggio se necessario, es. max 200px
+            # radius = min(radius, 200)
+
+            # Vettori direzione (dal vertice verso la punta)
+            vec_r = pr - vertex
+            vec_l = pl - vertex
+            
+            # Disegna Arco
             self.draw_angle_arc_with_label(img, vertex, vec_r, vec_l, (0, 255, 0), metric_val, radius)
 
         # Etichetta standard in basso
-        label_lines = [f"V-Style: {metric_val:.1f} deg | Frame: {f_idx}"]
+        label_lines = [f"V-Style: {metric_val:.2f} deg | Frame: {f_idx}"]
         h_img = img.shape[0]
-        self.draw_label_with_box(img, label_lines, (10, h_img - 25))
+        #self.draw_label_with_box(img, label_lines, (10, h_img - 25))
 
         return img
     
@@ -341,47 +349,77 @@ class MetricsVisualizer:
         except: return None
 
     def draw_body_ski(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
-        # --- 1. Linea Corpo (Media Semplice: Spalla -> Caviglia) ---
-        # Non ricalcoliamo la regressione, visualizziamo solo i punti estremi
+        # --- 1. Punti Corpo (Spalla -> Caviglia) ---
         shoulders = [self.get_kpt_pos(keypoints, s+'shoulder', kpt_names) for s in ['r_', 'l_']]
         ankles = [self.get_kpt_pos(keypoints, s+'ankle', kpt_names) for s in ['r_', 'l_']]
         
-        # Filtra None
+        # Filtra None e calcola medie
         shoulders = [p for p in shoulders if p is not None]
         ankles = [p for p in ankles if p is not None]
         
+        p_body_top, p_body_bot = None, None
         if shoulders and ankles:
-            # Calcola centri
             avg_sh = np.mean(shoulders, axis=0)
             avg_ank = np.mean(ankles, axis=0)
+            # Applica Offset e Scala
+            p_body_top = (avg_sh - offset) * scale
+            p_body_bot = (avg_ank - offset) * scale
             
-            # Applica Offset e Scala per disegnare sull'immagine ingrandita
-            p1 = (avg_sh - offset) * scale
-            p2 = (avg_ank - offset) * scale
-            
-            cv2.line(img, tuple(p1.astype(int)), tuple(p2.astype(int)), (255, 255, 0), 3) # Ciano
+            # Disegna linea solida Ciano
+            cv2.line(img, tuple(p_body_top.astype(int)), tuple(p_body_bot.astype(int)), (255, 255, 0), 3)
 
-        # --- 2. Linea Sci (Media Semplice: Punta -> Coda) ---
+        # --- 2. Punti Sci (Punta -> Coda) ---
         tips = [self.get_kpt_pos(keypoints, s+'ski_tip', kpt_names) for s in ['r_', 'l_']]
         tails = [self.get_kpt_pos(keypoints, s+'ski_tail', kpt_names) for s in ['r_', 'l_']]
         tips = [p for p in tips if p is not None]
         tails = [p for p in tails if p is not None]
         
+        p_ski_tip, p_ski_tail = None, None
         if tips and tails:
             avg_tip = np.mean(tips, axis=0)
             avg_tail = np.mean(tails, axis=0)
-            
             # Applica Offset e Scala
-            p_t = (avg_tip - offset) * scale
-            p_ta = (avg_tail - offset) * scale
+            p_ski_tip = (avg_tip - offset) * scale
+            p_ski_tail = (avg_tail - offset) * scale
             
-            cv2.line(img, tuple(p_t.astype(int)), tuple(p_ta.astype(int)), (0, 0, 255), 3) # Rosso
+            # Disegna linea solida Rossa
+            cv2.line(img, tuple(p_ski_tip.astype(int)), tuple(p_ski_tail.astype(int)), (0, 0, 255), 3)
 
-            # --- 3. Etichetta (Valore preso dal CSV) ---
-            label_lines = [f"BSA: {metric_val:.1f} degrees | Frame: {f_idx}"]
-            h_img = img.shape[0]
-            fixed_pos = (10, h_img - 25) 
-            self.draw_label_with_box(img, label_lines, fixed_pos)
+        # --- 3. Calcolo Intersezione e Angolo Colorato ---
+        if p_body_top is not None and p_ski_tip is not None:
+            # Trova l'intersezione tra la retta del corpo e quella dello sci
+            vertex = self.find_intersection(p_body_top, p_body_bot, p_ski_tip, p_ski_tail)
+            
+            if vertex is not None:
+                # Disegna linee tratteggiate verso l'intersezione (per far capire dove si incontrano)
+                # Dal piede al vertice
+                self.draw_dashed_line(img, p_body_bot, vertex, (255, 255, 0), 1, dash_len=6)
+                # Dalla coda dello sci al vertice
+                self.draw_dashed_line(img, p_ski_tail, vertex, (0, 0, 255), 1, dash_len=6)
+                
+                # Definisci i vettori uscenti dal vertice per disegnare l'arco
+                # Vettore 1: Verso la spalla
+                vec_body = p_body_top - vertex
+                # Vettore 2: Verso la punta dello sci
+                vec_ski = p_ski_tip - vertex
+                
+                # --- MODIFICA QUI ---
+                # Calcola la distanza tra l'intersezione e la punta dello sci
+                dist_to_tip = np.linalg.norm(vec_ski)
+                
+                # Imposta il raggio al 60% della lunghezza disponibile verso la punta
+                dynamic_radius = int(dist_to_tip * 0.6) 
+                
+                # Se preferisci un limite minimo (per non averlo minuscolo se l'intersezione è vicina)
+                dynamic_radius = max(dynamic_radius, 50)
+
+                # Disegna con il nuovo raggio
+                self.draw_angle_arc_with_label(img, vertex, vec_body, vec_ski, (0, 255, 255), metric_val, radius=dynamic_radius)
+        # --- 4. Etichetta Box ---
+        label_lines = [f"BSA: {metric_val:.2f} deg | Frame: {f_idx}"]
+        h_img = img.shape[0]
+        fixed_pos = (10, h_img - 25) 
+        #self.draw_label_with_box(img, label_lines, fixed_pos)
             
         return img
     
@@ -451,7 +489,7 @@ class MetricsVisualizer:
             
             # Posizione fissa in basso a sinistra (con font piccolo basta meno spazio dal bordo)
             fixed_pos = (10, h - 25) 
-            self.draw_label_with_box(img, [label_text], fixed_pos)
+            #self.draw_label_with_box(img, [label_text], fixed_pos)
             
         return img
     
@@ -466,108 +504,34 @@ class MetricsVisualizer:
             new_h = int(h * scale)
             return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC), scale
         return img, 1.0
-
-    def visualize_interactive(self):
-        if not self.load_data(): return
-
-        # --- INITIAL MENU ---
-        print("\n=== METRICS VISUALIZER ===")
-        print(" 1) Select jump first -> then metric")
-        print(" 2) Select metric first -> then jump")
-        mode = input("Choice (1 or 2): ").strip()
-
-        jump_ids = self.get_jump_ids()
-        
-        # Lista delle metriche "note" che sappiamo visualizzare
-        supported_metrics = [
-            'v_style_angle',
-            'symmetry_index_back', 
-            'body_ski_angle', 
-            'takeoff_knee_angle',
-            'telemark_depth_back_ratio'
-        ]
-
-        sel_jump = None
-        metric_name = None
-
-        # --- FLUSSO 1: SCELTA SALTO ---
-        if mode == '1':
-            print("\n--- AVAILABLE JUMPS ---")
-            for j in jump_ids: print(f" - {j}")
-            
-            sel_jump = input("\nEnter jump ID (e.g. 5): ").strip()
-            if not sel_jump.startswith("JP"): sel_jump = f"JP{int(sel_jump):04d}"
-            
-            if sel_jump not in jump_ids:
-                print("❌ Jump not found.")
-                return
-
-            metrics = self.get_available_metrics(sel_jump)
-            if not metrics:
-                print("❌ No metrics available for this jump.")
-                return
-
-            print(f"\n--- METRICS FOR {sel_jump} ---")
-            for i, m in enumerate(metrics): print(f" {i+1}) {m}")
-            
-            try:
-                m_idx = int(input("Choose metric number: ")) - 1
-                metric_name = metrics[m_idx]
-            except:
-                print("❌ Invalid selection."); return
-
-        # --- FLUSSO 2: SCELTA METRICA -> FILTRO SALTI ---
-        elif mode == '2':
-            print("\n--- AVAILABLE METRICS (Global) ---")
-            for i, m in enumerate(supported_metrics): print(f" {i+1}) {m}")
-            
-            try:
-                m_idx = int(input("Choose metric number: ")) - 1
-                metric_name = supported_metrics[m_idx]
-            except:
-                print("❌ Invalid selection."); return
-
-            # --- FILTER JUMPS ---
-            print(f"\n🔍 Searching jumps with data for '{metric_name}'...")
-            valid_jumps = []
-            
-            for jid in jump_ids:
-                # Controlliamo se questo salto ha la metrica
-                avail = self.get_available_metrics(jid)
-                if metric_name in avail:
-                    valid_jumps.append(jid)
-            
-            if not valid_jumps:
-                print(f"❌ No jumps found with metric '{metric_name}'.")
-                return
-
-            print(f"\n--- JUMPS WITH {metric_name} ---")
-            for j in valid_jumps: print(f" - {j}")
-            
-            sel_jump = input("\nEnter jump ID (e.g. 5): ").strip()
-            if not sel_jump.startswith("JP"): sel_jump = f"JP{int(sel_jump):04d}"
-            
-            if sel_jump not in valid_jumps:
-                print("❌ Invalid jump or missing metric.")
-                return
-
-        # Loading and main loop
+    
+    def process_jump(self, sel_jump, metric_name, interactive=True):
+        """
+        Processa un singolo salto.
+        Se interactive=True: mostra le finestre e aspetta input (Spazio/B/Esc).
+        Se interactive=False: salva tutti i frame e passa al successivo automaticamente.
+        """
+        # Paths setup
+        # NOTA: Assicurati che il percorso 'annotations' sia corretto rispetto alla tua struttura
         ann_path = self.root / 'dataset' / 'annotations' / sel_jump / 'train' / f'annotations_interpolated_jump{int(sel_jump[2:])}.coco.json'
         frames_dir = self.root / 'dataset' / 'frames' / sel_jump
-        save_dir = self.root / 'metrics' / 'visualizations' / sel_jump / metric_name
+        
+        # Cartella output: creiamo una sottocartella per ogni salto dentro la cartella della metrica
+        save_dir = Path(__file__).parent / 'frame_overlays' / sel_jump / metric_name
         save_dir.mkdir(parents=True, exist_ok=True)
 
         if not ann_path.exists():
-            print(f"❌ Annotations not found: {ann_path}"); return
+            print(f"❌ Annotations not found for {sel_jump}: {ann_path}")
+            return
 
         with open(ann_path, 'r') as f: coco = json.load(f)
         
         kpt_names = None
         cat_with_kpts = next((c for c in coco.get('categories', []) if 'keypoints' in c), None)
         if cat_with_kpts: kpt_names = cat_with_kpts['keypoints']
-        else: print("❌ CRITICAL ERROR: JSON has no keypoints."); return
+        else: return
         
-        # Prepare data
+        # Prepare data filter
         if metric_name == 'v_style_angle':
             mask = self.df['v_style_angle_front'].notna() | self.df['v_style_angle_back'].notna()
             df_view = self.df[(self.df['jump_id'] == sel_jump) & mask].copy()
@@ -576,8 +540,11 @@ class MetricsVisualizer:
             
         df_view = df_view.sort_values('frame_idx')
         
-        print(f"\n--- VISUALIZATION: {metric_name} ({len(df_view)} frames) ---")
-        print("Controls: [SPACE]=Next, [B]=Back, [ESC]=Exit")
+        if df_view.empty:
+            if interactive: print("No frames found for this metric.")
+            return
+
+        print(f" -> Processing {sel_jump}: {len(df_view)} frames...")
         
         ann_map = {a['image_id']: a for a in coco['annotations']}
         img_map = {img['file_name']: img['id'] for img in coco['images']}
@@ -594,17 +561,14 @@ class MetricsVisualizer:
             row = df_view.loc[indices[curr_ptr]]
             f_idx = int(row['frame_idx'])
             
-            # Determine value and type for V-Style
+            # Determine value
             val = 0.0
             view_str = ""
-            
             if metric_name == 'v_style_angle':
                 if pd.notna(row.get('v_style_angle_front')):
-                    val = row['v_style_angle_front']
-                    view_str = "FRONT"
+                    val = row['v_style_angle_front']; view_str = "FRONT"
                 elif pd.notna(row.get('v_style_angle_back')):
-                    val = row['v_style_angle_back']
-                    view_str = "BACK"
+                    val = row['v_style_angle_back']; view_str = "BACK"
             else:
                 val = row[metric_name]
             
@@ -621,46 +585,124 @@ class MetricsVisualizer:
             ann = ann_map.get(img_id)
             
             if ann and 'bbox' in ann:
+                # --- RENDER LOGIC ---
                 crop_img, offset = self.crop_to_skier(img, ann, margin=0.5)
                 kpts = ann['keypoints']
-                
-                # --- RESIZE INIZIALE ---
                 crop_img, scale_factor = self.smart_resize(crop_img, min_side=600)
 
-                # --- DISEGNO ---
                 if metric_name == 'v_style_angle':
                     crop_img = self.draw_v_style(crop_img, offset, kpts, kpt_names, val, f_idx, view_str, scale=scale_factor)
-                
                 elif 'symmetry_index_back' in metric_name:
                     crop_img = self.draw_symmetry(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
-                
                 elif 'body_ski' in metric_name:
                     crop_img = self.draw_body_ski(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
-
                 elif 'telemark_depth' in metric_name: 
                     crop_img = self.draw_telemark(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
                 else:
-                    # Generic case
                     h_img = crop_img.shape[0]
-                    fixed_pos = (10, h_img - 25)                    
-                    self.draw_label_with_box(crop_img, [f"{metric_name}: {val:.2f}", f"Frame: {f_idx}"], fixed_pos)
+                    #self.draw_label_with_box(crop_img, [f"{metric_name}: {val:.2f}", f"Frame: {f_idx}"], (10, h_img - 25))
 
+                # SAVE
                 save_path = save_dir / f"viz_{f_idx:05d}.jpg"
                 cv2.imwrite(str(save_path), crop_img)
-                cv2.imshow("Metrics Visualizer", crop_img)
                 
-                k = cv2.waitKey(0)
-                if k == 27: break
-                elif k == ord('b'): curr_ptr = max(0, curr_ptr - 1)
-                else: curr_ptr += 1
+                # INTERACTIVE CONTROL
+                if interactive:
+                    cv2.imshow("Metrics Visualizer", crop_img)
+                    k = cv2.waitKey(0)
+                    if k == 27: # ESC
+                        cv2.destroyAllWindows()
+                        return "EXIT" 
+                    elif k == ord('b'): curr_ptr = max(0, curr_ptr - 1)
+                    else: curr_ptr += 1
+                else:
+                    # Batch mode: avanti veloce
+                    curr_ptr += 1
             else:
                 curr_ptr += 1
+        
+        if interactive: cv2.destroyAllWindows()
+        return "DONE"
 
-        cv2.destroyAllWindows()
-        print(f"\n✅ Visualization finished. Saved to: {save_dir}")
+    def visualize_interactive(self):
+        if not self.load_data(): return
+
+        print("\n=== METRICS VISUALIZER ===")
+        print(" 1) Single Jump Mode (Select jump -> then metric)")
+        print(" 2) Batch Mode (Select metric -> Save ALL jumps with that metric)")
+        mode = input("Choice (1 or 2): ").strip()
+
+        jump_ids = self.get_jump_ids()
+        
+        supported_metrics = [
+            'v_style_angle',
+            'symmetry_index_back', 
+            'body_ski_angle', 
+            'takeoff_knee_angle',
+            'telemark_depth_back_ratio'
+        ]
+
+        # --- MODO 1: Interattivo Singolo ---
+        if mode == '1':
+            print("\n--- AVAILABLE JUMPS ---")
+            for j in jump_ids: print(f" - {j}")
+            
+            sel_jump = input("\nEnter jump ID (e.g. 5): ").strip()
+            if not sel_jump.startswith("JP"): sel_jump = f"JP{int(sel_jump):04d}"
+            
+            if sel_jump not in jump_ids:
+                print("❌ Jump not found."); return
+
+            metrics = self.get_available_metrics(sel_jump)
+            if not metrics:
+                print("❌ No metrics available."); return
+
+            print(f"\n--- METRICS FOR {sel_jump} ---")
+            for i, m in enumerate(metrics): print(f" {i+1}) {m}")
+            
+            try:
+                m_idx = int(input("Choose metric number: ")) - 1
+                metric_name = metrics[m_idx]
+            except:
+                print("❌ Invalid selection."); return
+            
+            # Chiama la funzione in modalità interattiva
+            self.process_jump(sel_jump, metric_name, interactive=True)
+
+
+        # --- MODO 2: Batch per Metrica ---
+        elif mode == '2':
+            print("\n--- AVAILABLE METRICS (Global) ---")
+            for i, m in enumerate(supported_metrics): print(f" {i+1}) {m}")
+            
+            try:
+                m_idx = int(input("Choose metric number: ")) - 1
+                metric_name = supported_metrics[m_idx]
+            except:
+                print("❌ Invalid selection."); return
+
+            print(f"\n🔍 Finding jumps for '{metric_name}'...")
+            valid_jumps = []
+            for jid in jump_ids:
+                if metric_name in self.get_available_metrics(jid):
+                    valid_jumps.append(jid)
+            
+            if not valid_jumps:
+                print(f"❌ No jumps found for {metric_name}."); return
+
+            print(f"Found {len(valid_jumps)} jumps: {valid_jumps}")
+            confirm = input("Start batch processing and saving? (y/n): ").lower()
+            
+            if confirm == 'y':
+                for i, jid in enumerate(valid_jumps):
+                    print(f"[{i+1}/{len(valid_jumps)}] Processing {jid}...")
+                    self.process_jump(jid, metric_name, interactive=False)
+                print("\n✅ Batch processing complete!")
+            else:
+                print("Cancelled.")
 
 if __name__ == "__main__":
     script_dir = Path(__file__).resolve().parent
-    root_dir = script_dir.parent 
+    root_dir = script_dir.parent.parent
     viz = MetricsVisualizer(dataset_root=root_dir)
     viz.visualize_interactive()

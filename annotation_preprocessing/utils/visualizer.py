@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 class Visualizer:
-    def __init__(self, dataset_root="dataset"):
+    def __init__(self, dataset_root="./dataset"):
         self.root = Path(dataset_root)
         
         # Keypoint conversion map (same as visualize_interpolation.py)
