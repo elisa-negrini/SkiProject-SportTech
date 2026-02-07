@@ -11,13 +11,8 @@ from random import shuffle
 import sys
 import pickle as pkl
 
-from utils import *
 from torch.utils.data import DataLoader, Dataset
 sys.path.append("..")
-try:
-    from utils import * 
-except ImportError:
-    pass
 
 import pytorch_lightning as pl
 
@@ -48,7 +43,7 @@ class SkijumpDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         working_dir = os.path.join(self.FLAGS.dataset_dir, self.FLAGS.dataset)
-        dataset_path = os.path.join(working_dir, 'test.pkl')
+        dataset_path = os.path.join(working_dir, 'val.pkl')
 
         dataset = SkijumpDataset(dataset_path, self.FLAGS)
 
@@ -78,19 +73,9 @@ class SkijumpDataModule(pl.LightningDataModule):
 
 
 class SkijumpDataset(Dataset):
-    ''' In:
-            data_path (string): path to the dataset split folder, i.e. train/valid/test
-            transform (callable, optional): transform to be applied on a sample.
-        Out:
-            sample (dict): sample data and respective label'''
-
-
+    
     def __init__(self, data_path, FLAGS=None):
-        """
-        Args:
-            data_numpy (np.array): The 2D skeleton data loaded from pkl. Shape (N, 23, 3)
-            flags: Optional flags/config argument (kept for compatibility).
-        """
+        
         self.flags = FLAGS
         self.data_path = data_path
         
@@ -113,16 +98,12 @@ class SkijumpDataset(Dataset):
             raise FileNotFoundError(f"File pickle not found: {data_path}")
 
     def __getitem__(self, index):
-        # 1. Get the pose 
         pose = self.data[index]
         
-        # 2. Convert to PyTorch Tensor (Float32)
         pose_tensor = torch.from_numpy(pose).float()
         
-        # 3. Handle Input Dimensions
         input_data = pose_tensor[:, :2]
         
-        # 4. Prepare Output Dictionary
         return {
             'input_2d': input_data,
             'target_2d': input_data,

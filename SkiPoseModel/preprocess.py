@@ -14,10 +14,6 @@ if not os.path.exists(OUTPUT_DIR):
 TRAIN_RATIO = 0.8
 NUM_TARGET_JOINTS = 23
 
-# --- MAPPING (Target : Source ID from JSON) ---
-# Based on your visual verification:
-# Target 1 (Head)    <- Takes from Source ID 19 (which is at index 18)
-# Target 2 (Neck)    <- Takes from Source ID 1 (which is at index 0)
 USER_MAP_1_BASED = {
     1: 1, 2: 19, 3: 3, 4: 4, 5: 5,         # Head, Neck, Right Arm
     6: 2, 7: 6, 8: 7,                      # Left Arm
@@ -48,9 +44,9 @@ def process_coco_json(json_path):
             s_idx = (source_id - 1) * 3
             
             if s_idx + 2 < len(raw_kps):
-                target_skel[t_idx, 0] = raw_kps[s_idx]     # x
-                target_skel[t_idx, 1] = raw_kps[s_idx + 1] # y
-                target_skel[t_idx, 2] = raw_kps[s_idx + 2] # conf
+                target_skel[t_idx, 0] = raw_kps[s_idx]    
+                target_skel[t_idx, 1] = raw_kps[s_idx + 1] 
+                target_skel[t_idx, 2] = raw_kps[s_idx + 2] 
         
         extracted_poses.append(target_skel)
     
@@ -82,16 +78,23 @@ def main():
 
     indices = list(range(len(all_skeletons)))
     random.shuffle(indices)
-    split_point = int(len(all_skeletons) * TRAIN_RATIO)
+
+    train_split = int(len(all_skeletons) * 0.7)
+    val_split = int(len(all_skeletons) * 0.85)
     
-    train_data = all_skeletons[indices[:split_point]]
-    test_data = all_skeletons[indices[split_point:]]
+    train_data = all_skeletons[indices[:train_split]]
+    val_data = all_skeletons[indices[train_split:val_split]]
+    test_data = all_skeletons[indices[val_split:]]
     
     dict_train = {'openpose_2d': train_data}
+    dict_val = {'openpose_2d': val_data}
     dict_test = {'openpose_2d': test_data}
     
     with open(os.path.join(OUTPUT_DIR, "train.pkl"), 'wb') as f:
         pkl.dump(dict_train, f, protocol=pkl.HIGHEST_PROTOCOL)
+
+    with open(os.path.join(OUTPUT_DIR, "val.pkl"), 'wb') as f:
+        pkl.dump(dict_val, f, protocol=pkl.HIGHEST_PROTOCOL)
         
     with open(os.path.join(OUTPUT_DIR, "test.pkl"), 'wb') as f:
         pkl.dump(dict_test, f, protocol=pkl.HIGHEST_PROTOCOL)

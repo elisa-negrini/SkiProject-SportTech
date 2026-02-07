@@ -1,4 +1,3 @@
-from distutils.command.config import config
 from datamodule import SkijumpDataModule
 from model import AdaptationNetwork
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
@@ -18,7 +17,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 FLAGS = flags.FLAGS
 
-# wandb.require("service")
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
 os.environ["TORCH_CUDNN_V8_API_ENABLED"] = "0"
@@ -26,22 +24,16 @@ os.environ["TORCH_CUDNN_V8_API_ENABLED"] = "0"
 def init_all():
     warnings.filterwarnings("ignore")
 
-    # enable cudnn and its inbuilt auto-tuner to find the best algorithm to use for your hardware
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
-    # useful for run-time
     torch.backends.cudnn.deterministic = True
 
-    # pl.seed_everything(FLAGS.seed)
     torch.cuda.empty_cache()
    
 
 def main(argv):
     init_all()
-
-    # wandb.init(project=FLAGS.project_name, name="From %s to %s" %(FLAGS.dataset,FLAGS.train_dataset))
-    # wandb_logger = WandbLogger()
 
     wandb_logger = WandbLogger(
         project=FLAGS.project_name, 
@@ -49,7 +41,6 @@ def main(argv):
         log_model=False
     )
 
-    # config = wandb.config
     if FLAGS.mode == "train":
         dm = SkijumpDataModule(FLAGS)
         model = AdaptationNetwork(FLAGS)
