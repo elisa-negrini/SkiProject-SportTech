@@ -16,12 +16,10 @@ FLAGS = flags.FLAGS
 INPUT_FILE = "test_results.pkl"
 OUTPUT_LINEARIZED = "test_results_linearized.pkl"
 
-# Dynamically from FLAGS
 IDX_SKI_SX = []
 IDX_SKI_DX = []
 
 def init_ski_indices():
-    """Initialize ski indices from FLAGS"""
     global IDX_SKI_SX, IDX_SKI_DX
     ski_joints = FLAGS.ski_joints if isinstance(FLAGS.ski_joints, list) else list(map(int, FLAGS.ski_joints))
     IDX_SKI_SX = ski_joints[:4]   # Left ski
@@ -78,10 +76,6 @@ def apply_linearization(raw_preds, gts, create_comparison_plots=True):
     
     print(" Linearizing ski points (PCA)...")
     
-    comparison_dir = "comparison_linearization"
-    if create_comparison_plots and not os.path.exists(comparison_dir):
-        os.makedirs(comparison_dir)
-    
     for i in tqdm(range(len(raw_preds)), desc="Linearizing"):
         ski_sx = raw_preds[i, IDX_SKI_SX, :]
         ski_dx = raw_preds[i, IDX_SKI_DX, :]
@@ -92,45 +86,8 @@ def apply_linearization(raw_preds, gts, create_comparison_plots=True):
         linearized_preds[i, IDX_SKI_SX, :] = lin_sx
         linearized_preds[i, IDX_SKI_DX, :] = lin_dx
         
-        if create_comparison_plots and i < 20:
-            plot_linearization_comparison(gts[i], raw_preds[i], linearized_preds[i], i, comparison_dir)
-    
-    print(f" Linearization complete. Comparison plots saved in '{comparison_dir}'")
+    print(" Linearization complete.")
     return linearized_preds
-
-
-def plot_linearization_comparison(gt, raw_pred, lin_pred, frame_idx, output_dir):
-    """
-    Plot comparison of GT vs raw prediction vs linearized prediction.
-    """
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    y_gt = -gt[:, 1]
-    y_raw = -raw_pred[:, 1]
-    y_lin = -lin_pred[:, 1]
-    
-    x_gt, x_raw, x_lin = gt[:, 0], raw_pred[:, 0], lin_pred[:, 0]
-
-    indices = IDX_SKI_SX + IDX_SKI_DX
-    
-    ax.scatter(x_gt[indices], y_gt[indices], c='green', alpha=0.3, s=50, label='Ground Truth')
-
-    ax.scatter(x_raw[indices], y_raw[indices], c='red', marker='x', alpha=0.6, s=80, label='Raw Prediction')
-
-    sx_idx = IDX_SKI_SX
-    ax.plot(x_lin[sx_idx], y_lin[sx_idx], 'b-o', linewidth=2, markersize=6, label='Linearized (Post-Process)')
-    
-    dx_idx = IDX_SKI_DX
-    ax.plot(x_lin[dx_idx], y_lin[dx_idx], 'b-o', linewidth=2, markersize=6)
-
-    ax.set_title(f"Post-Processing Linearization - Frame {frame_idx}")
-    ax.legend(loc='upper right')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-    
-    filename = os.path.join(output_dir, f"compare_{frame_idx:04d}.png")
-    plt.savefig(filename, bbox_inches='tight', dpi=100)
-    plt.close()
 
 def plot_single_frame(gt, pred, frame_idx, output_dir):
     """
@@ -199,9 +156,7 @@ def plot_single_frame(gt, pred, frame_idx, output_dir):
 
 
 def visualize_results(preds, gts, output_dir, num_frames=None):
-    """
-    Generate visualization plots for all frames.
-    """
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
@@ -218,7 +173,6 @@ def visualize_results(preds, gts, output_dir, num_frames=None):
     print(f" Visualization complete. Images saved in '{output_dir}'")
 
 def main(argv):
-    """Main entry point for post-processing and visualization."""
     init_ski_indices()
     
     if not os.path.exists(INPUT_FILE):
@@ -256,15 +210,13 @@ def main(argv):
     do_visualize = input("\nGenerate visualization plots? (y/n): ").lower().startswith('y')
     
     if do_visualize:
-        if do_linearize and input("Use 'results_best_linear' output folder? (y/n): ").lower().startswith('y'):
-            output_dir = "results"
-        else:
-            output_dir = "results_tmp"
+        if do_linearize and input("Use 'test_frames' output folder? (y/n): ").lower().startswith('y'):
+            output_dir = "test_frames"
         
         visualize_results(preds, gts, output_dir, num_frames=100)
     
     print("\n" + "=" * 80)
-    print("✅ POST-PROCESSING & VISUALIZATION COMPLETE")
+    print(" POST-PROCESSING & VISUALIZATION COMPLETE")
     print("=" * 80 + "\n")
     
     return True

@@ -35,18 +35,13 @@ class AdaptationNetwork(LightningModule):
         mask_indices = []
         
         if FLAGS.mode == 'train':
-            mask_indices = self.ski_joints.copy()
-            
-            body_joints = [i for i in range(self.FLAGS.n_joints) if i not in self.ski_joints]
-            num_additional_mask = random.randint(4, 7)
-            additional_masked = random.sample(body_joints, num_additional_mask)
-            mask_indices.extend(additional_masked)
+            mask_indices = self.ski_joints
             
             mask_indices_tensor = torch.tensor(mask_indices, device=z.device).long()
             z[:, mask_indices_tensor, :] = 0.0
             
         elif FLAGS.mode in ['demo', 'test']:
-            mask_indices = self.ski_joints.copy()
+            mask_indices = self.ski_joints
             mask_indices_tensor = torch.tensor(mask_indices, device=z.device).long()
             z[:, mask_indices_tensor, :] = 0.0
         
