@@ -6,18 +6,33 @@ import os
 from pathlib import Path
 
 class MetricsVisualizer:
-    def __init__(self, dataset_root='dataset', metrics_file='metrics/core_metrics/metrics_per_frame.csv'):
+    def __init__(self, dataset_root='.', metrics_file='metrics/core_metrics/metrics_per_frame.csv'):
         self.root = Path(dataset_root)
         self.metrics_path = Path(metrics_file)
+        self.summary_metrics_path = Path('metrics/timeseries_metrics/timeseries_summary.csv')
+
+        candidates = [
+            Path('jump_phases_SkiTB.csv'),
+            self.root / 'jump_phases_SkiTB.csv',
+            Path(__file__).parent / 'jump_phases_SkiTB.csv',
+            Path(__file__).parent.parent.parent / 'jump_phases_SkiTB.csv'
+        ]
         
-        # Logical name -> ID string in Roboflow JSON
+        self.phases_path = None
+        for p in candidates:
+            if p.exists():
+                self.phases_path = p
+                print(f"✅ Phases file found at: {p}")
+                break
+        
+        if self.phases_path is None:
+            print("⚠️ Warning: jump_phases_SkiTB.csv not found. Landing metrics visualization may fail.")
+
         self.kpt_id_map = {
-            # V-Style
             'head': '1', 'neck': '2',
             'center_pelvis': '9',
             'r_ski_tip': '23', 'r_ski_tail': '22',
             'l_ski_tip': '16', 'l_ski_tail': '15',
-            # Body-Ski Angle & Altro
             'r_shoulder': '3', 'r_ankle': '19',
             'l_shoulder': '6', 'l_ankle': '12',
             'r_hip': '17', 'r_knee': '18',
@@ -32,31 +47,49 @@ class MetricsVisualizer:
         return True
 
     def get_jump_ids(self):
-        return sorted(self.df['jump_id'].unique())
+        if hasattr(self, 'df'):
+            return sorted(self.df['jump_id'].unique())
+        return []
 
     def get_available_metrics(self, jump_id):
+        """Returns the list of available metrics for a jump."""
+        available = []
         df_jump = self.df[self.df['jump_id'] == jump_id]
-        valid_cols = []
+        if not df_jump.empty:
+            for col in df_jump.columns:
+                if df_jump[col].notna().any():
+                    available.append(col)
+            
+            has_front = 'v_style_angle_front' in df_jump.columns and df_jump['v_style_angle_front'].notna().any()
+            has_back = 'v_style_angle_back' in df_jump.columns and df_jump['v_style_angle_back'].notna().any()
+            
+            if (has_front or has_back) and 'v_style_angle' not in available:
+                available.append('v_style_angle')
         
-        # Check if at least one of the two columns has valid data
-        has_v_front = 'v_style_angle_front' in df_jump.columns and df_jump['v_style_angle_front'].notna().any()
-        has_v_back = 'v_style_angle_back' in df_jump.columns and df_jump['v_style_angle_back'].notna().any()
-        
-        if has_v_front or has_v_back:
-            valid_cols.append('v_style_angle')
+        if self.summary_metrics_path.exists():
+            try:
+                df_sum = pd.read_csv(self.summary_metrics_path)
+                if jump_id in df_sum['jump_id'].values:
+                    df_sum_jump = df_sum[df_sum['jump_id'] == jump_id]
+                else:
+                    df_sum_jump = df_sum[df_sum['jump_id'].apply(lambda x: self._normalize_jid(x)) == jump_id]
 
-        # Other standard metrics
-        candidates = [
-            'symmetry_index_back', 
-            'body_ski_angle', 
-            'takeoff_knee_angle', 
-            'telemark_depth_back_ratio'
-        ]
-        for col in candidates:
-            if col in df_jump.columns and df_jump[col].notna().any():
-                valid_cols.append(col)
-                
-        return valid_cols
+                if not df_sum_jump.empty:
+                    for col in df_sum_jump.columns:
+                        if df_sum_jump[col].notna().any() and col not in available:
+                            available.append(col)
+            except Exception as e:
+                print(f"Error reading summary metrics: {e}")
+                        
+        return available
+
+    def _normalize_jid(self, val):
+        import re
+        s = str(val)
+        m = re.search(r'(\d+)', s)
+        if m:
+            return f"JP{int(m.group(1)):04d}"
+        return str(val)
 
     def get_kpt_pos(self, keypoints, logical_name, kpt_list_order):
         real_id = self.kpt_id_map.get(logical_name)
@@ -99,7 +132,6 @@ class MetricsVisualizer:
         return np.array([px, py])
     
     def draw_dashed_line(self, img, p1, p2, color, thickness=2, dash_len=10):
-        """Draw a dashed line between p1 and p2."""
         vec = p2 - p1
         dist = np.linalg.norm(vec)
         if dist == 0: return img
@@ -110,21 +142,20 @@ class MetricsVisualizer:
         for i in range(segments):
             start = p1 + tangent * (i * dash_len)
             end = p1 + tangent * ((i + 0.5) * dash_len)
-            # Check not to exceed p2
             if np.linalg.norm(start - p1) > dist: break
             if np.linalg.norm(end - p1) > dist: end = p2
-            
             cv2.line(img, tuple(start.astype(int)), tuple(end.astype(int)), color, thickness)
         return img
     
     def draw_symmetry(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
-        # 1. Axis (neck -> pelvis)
         p_neck = self.get_kpt_pos(keypoints, 'neck', kpt_names)
-        p_pelvis = self.get_kpt_pos(keypoints, 'center_pelvis', kpt_names)
+        p_knee_r = self.get_kpt_pos(keypoints, 'r_knee', kpt_names)
+        p_knee_l = self.get_kpt_pos(keypoints, 'l_knee', kpt_names)
+        
         if p_neck is not None: p_neck = (p_neck - offset) * scale
-        if p_pelvis is not None: p_pelvis = (p_pelvis - offset) * scale
+        if p_knee_r is not None: p_knee_r = (p_knee_r - offset) * scale
+        if p_knee_l is not None: p_knee_l = (p_knee_l - offset) * scale
             
-        # 2. Skis
         tr = self.get_kpt_pos(keypoints, 'r_ski_tail', kpt_names)
         pr = self.get_kpt_pos(keypoints, 'r_ski_tip', kpt_names)
         tl = self.get_kpt_pos(keypoints, 'l_ski_tail', kpt_names)
@@ -135,24 +166,25 @@ class MetricsVisualizer:
             tr = (tr - offset) * scale; pr = (pr - offset) * scale
             tl = (tl - offset) * scale; pl = (pl - offset) * scale
 
-        # 3. Build axis
-        p_pelvis_core, vec_body_axis = None, None
+        p_ref_core, vec_body_axis = None, None
         p_bottom_extended = None
         
-        if p_neck is not None and p_pelvis is not None:
-            vec_core = p_pelvis - p_neck # Verso il BASSO
+        if p_neck is not None and p_knee_r is not None and p_knee_l is not None:
+            p_mid_knee = (p_knee_r + p_knee_l) / 2
+            vec_core = p_mid_knee - p_neck 
             len_core = np.linalg.norm(vec_core)
+            
             if len_core > 0:
                 vec_body_axis = vec_core / len_core
-                p_pelvis_core = p_pelvis
-                p_top_draw = p_neck - vec_body_axis * (len_core * 0.30)
-                p_bottom_draw = p_pelvis + vec_body_axis * (len_core * 4.00) 
-                p_bottom_extended = p_pelvis + vec_body_axis * 10000 
+                p_ref_core = p_mid_knee
+                p_top_draw = p_neck - vec_body_axis * (len_core * 0.20)
+                p_bottom_draw = p_mid_knee + vec_body_axis * (len_core * 3.00) 
+                p_bottom_extended = p_mid_knee + vec_body_axis * 10000 
 
-                cv2.line(img, tuple(p_top_draw.astype(int)), tuple(p_pelvis.astype(int)), (255, 0, 0), 2, cv2.LINE_AA)
-                self.draw_dashed_line(img, p_pelvis, p_bottom_draw, (255, 0, 0), 2, dash_len=15)
+                cv2.line(img, tuple(p_top_draw.astype(int)), tuple(p_mid_knee.astype(int)), (255, 0, 0), 2, cv2.LINE_AA)
+                self.draw_dashed_line(img, p_mid_knee, p_bottom_draw, (255, 0, 0), 2, dash_len=15)
 
-        if skis_ok and p_pelvis_core is not None and p_bottom_extended is not None:
+        if skis_ok and p_ref_core is not None and p_bottom_extended is not None:
             def get_angle_between(v1, v2):
                 v1_u = v1 / np.linalg.norm(v1)
                 v2_u = v2 / np.linalg.norm(v2)
@@ -161,72 +193,49 @@ class MetricsVisualizer:
                 if deg > 90: deg = 180 - deg
                 return deg
 
-            # A. Intersezioni
-            int_r = self.find_intersection(tr, pr, p_pelvis_core, p_bottom_extended)
-            int_l = self.find_intersection(tl, pl, p_pelvis_core, p_bottom_extended)
+            int_r = self.find_intersection(tr, pr, p_ref_core, p_bottom_extended)
+            int_l = self.find_intersection(tl, pl, p_ref_core, p_bottom_extended)
             
-            # B. Compute target height (mid-thigh) using average ski length
             len_ski = (np.linalg.norm(pr - tr) + np.linalg.norm(pl - tl)) / 2
+            dist_target_from_ref = len_ski * 0.4
             
-            # Project 50% of ski length from pelvis as target distance
-            dist_target_from_pelvis = len_ski * 0.5 
-            
-            # Funzione proiezione distanza su asse
             def get_dist_on_axis(p):
-                # Distanza proiettata dal bacino (positiva verso il basso)
-                return np.dot(p - p_pelvis_core, vec_body_axis)
+                return np.dot(p - p_ref_core, vec_body_axis)
 
-            # Distanza target assoluta dal bacino
-            target_proj_d = dist_target_from_pelvis
-
-            # Calcolo raggi per raggiungere quel target dai rispettivi vertici
-            # Radius = |Posizione Vertice - Posizione Target|
-            radius_r = abs(get_dist_on_axis(int_r) - target_proj_d) if int_r is not None else 50
-            radius_l = abs(get_dist_on_axis(int_l) - target_proj_d) if int_l is not None else 50
-            
-            # C. Disegno
             vec_up_axis = -vec_body_axis 
 
             if int_r is not None:
                 self.draw_dashed_line(img, tr, int_r, (0, 255, 255), 1, dash_len=8)
-                vec_ski_vis_r = tr - int_r 
+                radius_r = max(30, abs(get_dist_on_axis(int_r) - dist_target_from_ref))
                 ang_val_r = get_angle_between(pr - tr, vec_body_axis)
-                self.draw_angle_arc_with_label(img, int_r, vec_up_axis, vec_ski_vis_r, (0, 255, 255), ang_val_r, radius=int(radius_r))
+                self.draw_angle_arc_with_label(img, int_r, vec_up_axis, tr - int_r, (0, 255, 255), ang_val_r, radius=int(radius_r))
 
             if int_l is not None:
                 self.draw_dashed_line(img, tl, int_l, (255, 0, 255), 1, dash_len=8)
-                vec_ski_vis_l = tl - int_l
+                radius_l = max(30, abs(get_dist_on_axis(int_l) - dist_target_from_ref))
                 ang_val_l = get_angle_between(pl - tl, vec_body_axis)
-                self.draw_angle_arc_with_label(img, int_l, vec_up_axis, vec_ski_vis_l, (255, 0, 255), ang_val_l, radius=int(radius_l))
+                self.draw_angle_arc_with_label(img, int_l, vec_up_axis, tl - int_l, (255, 0, 255), ang_val_l, radius=int(radius_l))
 
             cv2.line(img, tuple(tr.astype(int)), tuple(pr.astype(int)), (0, 0, 255), 3)
             cv2.line(img, tuple(tl.astype(int)), tuple(pl.astype(int)), (0, 0, 255), 3)
             
-            #self.draw_label_with_box(img, [f"Sym Index: {metric_val:.2f}", f"Frame: {f_idx}"], (10, img.shape[0] - 25))
-            
         return img
     
     def draw_angle_arc_with_label(self, img, center, vec_start, vec_end, color_fill, val_deg, radius=50):
-        """Draw a filled arc and a value label."""
-        # Calcola angoli in gradi
         ang_start = np.degrees(np.arctan2(vec_start[1], vec_start[0]))
         ang_end = np.degrees(np.arctan2(vec_end[1], vec_end[0]))
         
-        # Normalize for ellipse drawing
         if ang_end - ang_start > 180: ang_end -= 360
         if ang_start - ang_end > 180: ang_start -= 360
         
         start_draw = min(ang_start, ang_end)
         end_draw = max(ang_start, ang_end)
         
-        # 1. Disegna Arco/Settore
         overlay = img.copy()
         cv2.ellipse(overlay, tuple(center.astype(int)), (radius, radius), 
                    0, start_draw, end_draw, color_fill, -1)
-        cv2.addWeighted(overlay, 0.5, img, 0.5, 0, img) # Trasparenza
+        cv2.addWeighted(overlay, 0.5, img, 0.5, 0, img)
         
-        # 2. Etichetta con sfondo nero
-        # Posizione: a metà dell'arco, un po' più distante dal raggio
         mid_ang_rad = np.radians((start_draw + end_draw) / 2)
         label_dist = radius + 20
         lx = center[0] + np.cos(mid_ang_rad) * label_dist
@@ -235,55 +244,13 @@ class MetricsVisualizer:
         text = f"{val_deg:.2f}"
         (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
         
-        # Sfondo Nero
         tl = (int(lx - w/2 - 2), int(ly - h/2 - 2))
         br = (int(lx + w/2 + 2), int(ly + h/2 + 2))
         cv2.rectangle(img, tl, br, (0,0,0), -1)
         
-        # Testo del colore dell'area
         cv2.putText(img, text, (int(lx - w/2), int(ly + h/2)), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_fill, 2, cv2.LINE_AA)
         return img
-
-    def draw_label_with_box(self, img, text_lines, pos_target):
-        if isinstance(text_lines, str): text_lines = [text_lines]
-        
-        h_img, w_img = img.shape[:2]
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.45
-        thickness = 1
-        pad = 4
-        line_spacing = 4
-        
-        max_w = 0
-        total_h = 0
-        
-        for line in text_lines:
-            (w, h), baseline = cv2.getTextSize(line, font, font_scale, thickness)
-            max_w = max(max_w, w)
-            total_h += h + baseline + line_spacing
-        
-        total_h -= line_spacing
-        
-        w_box = max_w + 2*pad
-        h_box = total_h + 2*pad
-        
-        x, y = pos_target
-        x = max(0, min(x, w_img - w_box))
-        y = max(0, min(y, h_img - h_box))
-        
-        cv2.rectangle(img, (int(x), int(y)), (int(x + w_box), int(y + h_box)), (255, 255, 255), -1)
-        cv2.rectangle(img, (int(x), int(y)), (int(x + w_box), int(y + h_box)), (0, 0, 0), 1)
-        
-        curr_y = y + pad
-        for line in text_lines:
-            (w, h), baseline = cv2.getTextSize(line, font, font_scale, thickness)
-            center_x = int(x + (w_box / 2) - (w / 2))
-            
-            curr_y += h + baseline
-            cv2.putText(img, line, (center_x, int(curr_y - baseline + 2)), 
-                       font, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
-            curr_y += line_spacing
 
     def draw_v_style(self, img, offset, keypoints, kpt_names, metric_val, f_idx, view_type="", scale=1.0):
         tr = self.get_kpt_pos(keypoints, 'r_ski_tail', kpt_names)
@@ -293,67 +260,31 @@ class MetricsVisualizer:
         
         if any(x is None for x in [tr, pr, tl, pl]): return img
         
-        # Applica Scala
         tr = (tr - offset) * scale; pr = (pr - offset) * scale
         tl = (tl - offset) * scale; pl = (pl - offset) * scale
         
-        # Disegna Sci Solidi
         cv2.line(img, tuple(tr.astype(int)), tuple(pr.astype(int)), (0, 0, 255), 3)
         cv2.line(img, tuple(tl.astype(int)), tuple(pl.astype(int)), (0, 0, 255), 3)
         
         vertex = self.find_intersection(tr, pr, tl, pl)
         
         if vertex is not None:
-            # --- DASHED LINES TO VERTEX ---
-            # Draw dashed lines from tails (tr/tl) to intersection (vertex)
             self.draw_dashed_line(img, tr, vertex, (100, 100, 255), 1, dash_len=8)
             self.draw_dashed_line(img, tl, vertex, (100, 100, 255), 1, dash_len=8)
             
-            ## --- MODIFICA RAGGIO (Verso le Punte) ---
-            # Calcola distanza dal vertice alle PUNTE (pr, pl) invece che alle code
             dist_pr = np.linalg.norm(pr - vertex)
             dist_pl = np.linalg.norm(pl - vertex)
-            
-            # Usa il 60% della distanza verso la punta (o un'altra % a piacere)
             radius = int(min(dist_pr, dist_pl) * 0.6) 
             
-            # (Opzionale) Limita il raggio se necessario, es. max 200px
-            # radius = min(radius, 200)
-
-            # Vettori direzione (dal vertice verso la punta)
             vec_r = pr - vertex
             vec_l = pl - vertex
-            
-            # Disegna Arco
             self.draw_angle_arc_with_label(img, vertex, vec_r, vec_l, (0, 255, 0), metric_val, radius)
-
-        # Etichetta standard in basso
-        label_lines = [f"V-Style: {metric_val:.2f} deg | Frame: {f_idx}"]
-        h_img = img.shape[0]
-        #self.draw_label_with_box(img, label_lines, (10, h_img - 25))
-
         return img
     
-    def get_regression_line(self, points, img_shape):
-        """Calculate start/end points to draw regression line."""
-        if len(points) < 2: return None
-        data = np.array(points)
-        x, y = data[:, 0], data[:, 1]
-        try:
-            slope, intercept = np.polyfit(x, y, 1)
-            # Create two points to draw the line
-            y_min, y_max = np.min(y), np.max(y)
-            x_min = (y_min - intercept) / slope
-            x_max = (y_max - intercept) / slope
-            return (np.array([x_min, y_min]), np.array([x_max, y_max]))
-        except: return None
-
     def draw_body_ski(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
-        # --- 1. Punti Corpo (Spalla -> Caviglia) ---
         shoulders = [self.get_kpt_pos(keypoints, s+'shoulder', kpt_names) for s in ['r_', 'l_']]
         ankles = [self.get_kpt_pos(keypoints, s+'ankle', kpt_names) for s in ['r_', 'l_']]
         
-        # Filtra None e calcola medie
         shoulders = [p for p in shoulders if p is not None]
         ankles = [p for p in ankles if p is not None]
         
@@ -361,14 +292,10 @@ class MetricsVisualizer:
         if shoulders and ankles:
             avg_sh = np.mean(shoulders, axis=0)
             avg_ank = np.mean(ankles, axis=0)
-            # Applica Offset e Scala
             p_body_top = (avg_sh - offset) * scale
             p_body_bot = (avg_ank - offset) * scale
-            
-            # Disegna linea solida Ciano
             cv2.line(img, tuple(p_body_top.astype(int)), tuple(p_body_bot.astype(int)), (255, 255, 0), 3)
 
-        # --- 2. Punti Sci (Punta -> Coda) ---
         tips = [self.get_kpt_pos(keypoints, s+'ski_tip', kpt_names) for s in ['r_', 'l_']]
         tails = [self.get_kpt_pos(keypoints, s+'ski_tail', kpt_names) for s in ['r_', 'l_']]
         tips = [p for p in tips if p is not None]
@@ -378,126 +305,130 @@ class MetricsVisualizer:
         if tips and tails:
             avg_tip = np.mean(tips, axis=0)
             avg_tail = np.mean(tails, axis=0)
-            # Applica Offset e Scala
             p_ski_tip = (avg_tip - offset) * scale
             p_ski_tail = (avg_tail - offset) * scale
-            
-            # Disegna linea solida Rossa
             cv2.line(img, tuple(p_ski_tip.astype(int)), tuple(p_ski_tail.astype(int)), (0, 0, 255), 3)
 
-        # --- 3. Calcolo Intersezione e Angolo Colorato ---
         if p_body_top is not None and p_ski_tip is not None:
-            # Trova l'intersezione tra la retta del corpo e quella dello sci
             vertex = self.find_intersection(p_body_top, p_body_bot, p_ski_tip, p_ski_tail)
-            
             if vertex is not None:
-                # Disegna linee tratteggiate verso l'intersezione (per far capire dove si incontrano)
-                # Dal piede al vertice
                 self.draw_dashed_line(img, p_body_bot, vertex, (255, 255, 0), 1, dash_len=6)
-                # Dalla coda dello sci al vertice
                 self.draw_dashed_line(img, p_ski_tail, vertex, (0, 0, 255), 1, dash_len=6)
-                
-                # Definisci i vettori uscenti dal vertice per disegnare l'arco
-                # Vettore 1: Verso la spalla
                 vec_body = p_body_top - vertex
-                # Vettore 2: Verso la punta dello sci
                 vec_ski = p_ski_tip - vertex
-                
-                # --- MODIFICA QUI ---
-                # Calcola la distanza tra l'intersezione e la punta dello sci
                 dist_to_tip = np.linalg.norm(vec_ski)
-                
-                # Imposta il raggio al 60% della lunghezza disponibile verso la punta
-                dynamic_radius = int(dist_to_tip * 0.6) 
-                
-                # Se preferisci un limite minimo (per non averlo minuscolo se l'intersezione è vicina)
-                dynamic_radius = max(dynamic_radius, 50)
-
-                # Disegna con il nuovo raggio
+                dynamic_radius = max(int(dist_to_tip * 0.6), 50)
                 self.draw_angle_arc_with_label(img, vertex, vec_body, vec_ski, (0, 255, 255), metric_val, radius=dynamic_radius)
-        # --- 4. Etichetta Box ---
-        label_lines = [f"BSA: {metric_val:.2f} deg | Frame: {f_idx}"]
-        h_img = img.shape[0]
-        fixed_pos = (10, h_img - 25) 
-        #self.draw_label_with_box(img, label_lines, fixed_pos)
-            
         return img
     
+    def draw_knee_compression(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
+        legs = [
+            {'hip': 'r_hip', 'knee': 'r_knee', 'ank': 'r_ankle', 'color': (0, 255, 255)}, 
+            {'hip': 'l_hip', 'knee': 'l_knee', 'ank': 'l_ankle', 'color': (0, 165, 255)} 
+        ]
+        
+        found_any = False
+        for leg in legs:
+            ph = self.get_kpt_pos(keypoints, leg['hip'], kpt_names)
+            pk = self.get_kpt_pos(keypoints, leg['knee'], kpt_names)
+            pa = self.get_kpt_pos(keypoints, leg['ank'], kpt_names)
+            if all(p is not None for p in [ph, pk, pa]):
+                found_any = True
+                ph, pk, pa = (ph - offset) * scale, (pk - offset) * scale, (pa - offset) * scale
+                cv2.line(img, tuple(ph.astype(int)), tuple(pk.astype(int)), leg['color'], 4, cv2.LINE_AA)
+                cv2.line(img, tuple(pk.astype(int)), tuple(pa.astype(int)), leg['color'], 4, cv2.LINE_AA)
+
+        if found_any:
+            h, w = img.shape[:2]
+            bar_w, bar_h = 20, int(h * 0.5)
+            x_start, y_start = w - 40, int((h - bar_h) / 2)
+            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_start + bar_h), (50, 50, 50), -1)
+            max_comp_ref = 10.0 
+            fill_ratio = min(metric_val / max_comp_ref, 1.0)
+            fill_h = int(bar_h * fill_ratio)
+            color_impact = (0, 255, 0) if fill_ratio < 0.5 else (0, 0, 255)
+            cv2.rectangle(img, (x_start, y_start + bar_h - fill_h), (x_start + bar_w, y_start + bar_h), color_impact, -1)
+            cv2.putText(img, "COMP", (x_start - 10, y_start - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        return img
+    
+    def draw_takeoff_knee(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
+        legs = [
+            {'hip': 'r_hip', 'knee': 'r_knee', 'ank': 'r_ankle', 'color': (0, 255, 0)},
+            {'hip': 'l_hip', 'knee': 'l_knee', 'ank': 'l_ankle', 'color': (255, 255, 0)}
+        ]
+        found_any = False
+        label_drawn = False
+        for leg in legs:
+            p_hip = self.get_kpt_pos(keypoints, leg['hip'], kpt_names)
+            p_knee = self.get_kpt_pos(keypoints, leg['knee'], kpt_names)
+            p_ank = self.get_kpt_pos(keypoints, leg['ank'], kpt_names)
+            if all(p is not None for p in [p_hip, p_knee, p_ank]):
+                found_any = True
+                ph = (p_hip - offset) * scale
+                pk = (p_knee - offset) * scale
+                pa = (p_ank - offset) * scale
+                cv2.line(img, tuple(ph.astype(int)), tuple(pk.astype(int)), leg['color'], 3, cv2.LINE_AA)
+                cv2.line(img, tuple(pk.astype(int)), tuple(pa.astype(int)), leg['color'], 3, cv2.LINE_AA)
+                cv2.circle(img, tuple(pk.astype(int)), 5, (255, 255, 255), -1)
+                v_femur = ph - pk
+                v_tibia = pa - pk
+                if not label_drawn:
+                    self.draw_angle_arc_with_label(img, pk, v_femur, v_tibia, leg['color'], metric_val, radius=40)
+                    label_drawn = True
+                else:
+                    self.draw_only_arc_no_label(img, pk, v_femur, v_tibia, leg['color'], radius=40)
+        return img
+
+    def draw_only_arc_no_label(self, img, center, vec_start, vec_end, color_fill, radius=40):
+        ang_start = np.degrees(np.arctan2(vec_start[1], vec_start[0]))
+        ang_end = np.degrees(np.arctan2(vec_end[1], vec_end[0]))
+        if ang_end - ang_start > 180: ang_end -= 360
+        if ang_start - ang_end > 180: ang_start -= 360
+        start_draw = min(ang_start, ang_end)
+        end_draw = max(ang_start, ang_end)
+        overlay = img.copy()
+        cv2.ellipse(overlay, tuple(center.astype(int)), (radius, radius), 0, start_draw, end_draw, color_fill, -1)
+        cv2.addWeighted(overlay, 0.5, img, 0.5, 0, img)
+
     def draw_telemark(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
         ank_r = self.get_kpt_pos(keypoints, 'r_ankle', kpt_names)
         ank_l = self.get_kpt_pos(keypoints, 'l_ankle', kpt_names)
         tips = [self.get_kpt_pos(keypoints, s+'ski_tip', kpt_names) for s in ['r_', 'l_']]
         tails = [self.get_kpt_pos(keypoints, s+'ski_tail', kpt_names) for s in ['r_', 'l_']]
         
-        # Filtra None e applica offset
         tips = [(p - offset) * scale for p in tips if p is not None]
         tails = [(p - offset) * scale for p in tails if p is not None]
 
         if ank_r is not None and ank_l is not None:
-            # Applica offset e scala alle caviglie
             ank_r = (ank_r - offset) * scale
             ank_l = (ank_l - offset) * scale
-            
-            # --- 1. SCI ROSSI TRASPARENTI ---
             if tips and tails:
-                overlay = img.copy() # Crea un livello trasparente
-                # Disegna linee rosse su overlay
+                overlay = img.copy()
                 avg_tip = np.mean(tips, axis=0).astype(int)
                 avg_tail = np.mean(tails, axis=0).astype(int)
-                # Linea rossa spessa
                 cv2.line(overlay, tuple(avg_tip), tuple(avg_tail), (0, 0, 255), 4) 
-                
-                # Fonde overlay e immagine originale (0.4 = 40% visibilità linee)
                 cv2.addWeighted(overlay, 0.4, img, 0.6, 0, img)
-
-            # --- 2. GEOMETRIA (Cerchi e Linee Gialle) ---
-            # Disegnati DOPO la trasparenza per rimanere brillanti
             ar, al = ank_r.astype(int), ank_l.astype(int)
             cv2.circle(img, tuple(ar), 6, (0, 255, 255), -1) 
             cv2.circle(img, tuple(al), 6, (0, 255, 255), -1)
             cv2.line(img, tuple(ar), tuple(al), (0, 255, 255), 1)
-
-            # --- 3. BARRA LATERALE (Piccola a Destra) ---
             h, w = img.shape[:2]
-            bar_w = 15           # Molto più stretta
-            bar_h = int(h * 0.4) # Alta solo il 40% dell'immagine
-            pad_right = 10
-            
-            x_start = w - bar_w - pad_right
-            y_start = int((h - bar_h) / 2)
-            y_end = y_start + bar_h
-            
-            # Sfondo barra
-            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_end), (50, 50, 50), -1)
-            
-            # Riempimento dinamico
-            max_val = 0.8 # Valore di riferimento per "ottimo"
+            bar_w, bar_h = 15, int(h * 0.4)
+            x_start, y_start = w - bar_w - 10, int((h - bar_h) / 2)
+            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_start + bar_h), (50, 50, 50), -1)
+            max_val = 0.8
             fill_ratio = min(metric_val / max_val, 1.0)
             fill_h = int(bar_h * fill_ratio)
-            
             color_bar = (0, 0, 255) 
             if fill_ratio > 0.4: color_bar = (0, 255, 255)
             if fill_ratio > 0.7: color_bar = (0, 255, 0)
-            
-            # Disegna livello
-            cv2.rectangle(img, (x_start, y_end - fill_h), (x_start + bar_w, y_end), color_bar, -1)
-            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_end), (200, 200, 200), 1)
-
-            # --- 4. TESTO UNICA RIGA (In basso a sinistra) ---
-            # Unisco le stringhe con " | " per averle su una riga sola
-            label_text = f"Telemark Ratio: {metric_val:.2f} | Frame: {f_idx}"
-            
-            # Posizione fissa in basso a sinistra (con font piccolo basta meno spazio dal bordo)
-            fixed_pos = (10, h - 25) 
-            #self.draw_label_with_box(img, [label_text], fixed_pos)
-            
+            cv2.rectangle(img, (x_start, y_start + bar_h - fill_h), (x_start + bar_w, y_start + bar_h), color_bar, -1)
+            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_start + bar_h), (200, 200, 200), 1)
         return img
     
     def smart_resize(self, img, min_side=600):
-        """Ingrandisce e restituisce anche il fattore di scala."""
         h, w = img.shape[:2]
         current_min = min(h, w)
-        
         if current_min < min_side:
             scale = min_side / current_min
             new_w = int(w * scale)
@@ -506,17 +437,8 @@ class MetricsVisualizer:
         return img, 1.0
     
     def process_jump(self, sel_jump, metric_name, interactive=True):
-        """
-        Processa un singolo salto.
-        Se interactive=True: mostra le finestre e aspetta input (Spazio/B/Esc).
-        Se interactive=False: salva tutti i frame e passa al successivo automaticamente.
-        """
-        # Paths setup
-        # NOTA: Assicurati che il percorso 'annotations' sia corretto rispetto alla tua struttura
         ann_path = self.root / 'dataset' / 'annotations' / sel_jump / 'train' / f'annotations_interpolated_jump{int(sel_jump[2:])}.coco.json'
         frames_dir = self.root / 'dataset' / 'frames' / sel_jump
-        
-        # Cartella output: creiamo una sottocartella per ogni salto dentro la cartella della metrica
         save_dir = Path(__file__).parent / 'frame_overlays' / sel_jump / metric_name
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -531,10 +453,28 @@ class MetricsVisualizer:
         if cat_with_kpts: kpt_names = cat_with_kpts['keypoints']
         else: return
         
-        # Prepare data filter
         if metric_name == 'v_style_angle':
             mask = self.df['v_style_angle_front'].notna() | self.df['v_style_angle_back'].notna()
             df_view = self.df[(self.df['jump_id'] == sel_jump) & mask].copy()
+            
+        elif 'landing_knee_compression' in metric_name:
+            landing_frame = None
+            if self.phases_path is not None:
+                df_phases = pd.read_csv(self.phases_path)
+                df_phases['jump_id'] = df_phases['jump_id'].apply(self._normalize_jid)
+                row = df_phases[df_phases['jump_id'] == sel_jump]
+                
+                if not row.empty and pd.notna(row.iloc[0]['landing']):
+                    landing_frame = int(row.iloc[0]['landing'])
+
+            if landing_frame is not None:
+                start_f = landing_frame
+                end_f = landing_frame + 25
+                wanted_frames = list(range(start_f, end_f + 1))
+                df_view = pd.DataFrame({'frame_idx': wanted_frames, 'jump_id': sel_jump})
+            else:
+                print(f"⚠️ Landing frame not found for {sel_jump}, showing all frames.")
+                df_view = self.df[self.df['jump_id'] == sel_jump].copy()
         else:
             df_view = self.df[(self.df['jump_id'] == sel_jump) & (self.df[metric_name].notna())].copy()
             
@@ -561,16 +501,23 @@ class MetricsVisualizer:
             row = df_view.loc[indices[curr_ptr]]
             f_idx = int(row['frame_idx'])
             
-            # Determine value
             val = 0.0
             view_str = ""
-            if metric_name == 'v_style_angle':
+            if 'landing_knee_compression' in metric_name:
+                if self.summary_metrics_path.exists():
+                    try:
+                        df_ts = pd.read_csv(self.summary_metrics_path)
+                        jump_data = df_ts[df_ts['jump_id'] == sel_jump]
+                        if not jump_data.empty:
+                            val = jump_data[metric_name].values[0]
+                    except: val = 0.0
+            elif metric_name == 'v_style_angle':
                 if pd.notna(row.get('v_style_angle_front')):
                     val = row['v_style_angle_front']; view_str = "FRONT"
                 elif pd.notna(row.get('v_style_angle_back')):
                     val = row['v_style_angle_back']; view_str = "BACK"
             else:
-                val = row[metric_name]
+                val = row.get(metric_name, 0.0)
             
             fname = frame_lookup.get(f_idx)
             if not fname: curr_ptr += 1; continue
@@ -585,7 +532,6 @@ class MetricsVisualizer:
             ann = ann_map.get(img_id)
             
             if ann and 'bbox' in ann:
-                # --- RENDER LOGIC ---
                 crop_img, offset = self.crop_to_skier(img, ann, margin=0.5)
                 kpts = ann['keypoints']
                 crop_img, scale_factor = self.smart_resize(crop_img, min_side=600)
@@ -596,27 +542,23 @@ class MetricsVisualizer:
                     crop_img = self.draw_symmetry(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
                 elif 'body_ski' in metric_name:
                     crop_img = self.draw_body_ski(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
+                elif 'takeoff_knee' in metric_name:
+                    crop_img = self.draw_takeoff_knee(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
+                elif 'landing_knee_compression' in metric_name:
+                    crop_img = self.draw_knee_compression(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
                 elif 'telemark_depth' in metric_name: 
                     crop_img = self.draw_telemark(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
-                else:
-                    h_img = crop_img.shape[0]
-                    #self.draw_label_with_box(crop_img, [f"{metric_name}: {val:.2f}", f"Frame: {f_idx}"], (10, h_img - 25))
 
-                # SAVE
                 save_path = save_dir / f"viz_{f_idx:05d}.jpg"
                 cv2.imwrite(str(save_path), crop_img)
                 
-                # INTERACTIVE CONTROL
                 if interactive:
                     cv2.imshow("Metrics Visualizer", crop_img)
                     k = cv2.waitKey(0)
-                    if k == 27: # ESC
-                        cv2.destroyAllWindows()
-                        return "EXIT" 
+                    if k == 27: cv2.destroyAllWindows(); return "EXIT" 
                     elif k == ord('b'): curr_ptr = max(0, curr_ptr - 1)
                     else: curr_ptr += 1
                 else:
-                    # Batch mode: avanti veloce
                     curr_ptr += 1
             else:
                 curr_ptr += 1
@@ -639,47 +581,35 @@ class MetricsVisualizer:
             'symmetry_index_back', 
             'body_ski_angle', 
             'takeoff_knee_angle',
+            'landing_knee_compression',
             'telemark_depth_back_ratio'
         ]
 
-        # --- MODO 1: Interattivo Singolo ---
         if mode == '1':
             print("\n--- AVAILABLE JUMPS ---")
             for j in jump_ids: print(f" - {j}")
-            
             sel_jump = input("\nEnter jump ID (e.g. 5): ").strip()
             if not sel_jump.startswith("JP"): sel_jump = f"JP{int(sel_jump):04d}"
             
-            if sel_jump not in jump_ids:
-                print("❌ Jump not found."); return
-
+            if sel_jump not in jump_ids: print("❌ Jump not found."); return
             metrics = self.get_available_metrics(sel_jump)
-            if not metrics:
-                print("❌ No metrics available."); return
+            if not metrics: print("❌ No metrics available."); return
 
             print(f"\n--- METRICS FOR {sel_jump} ---")
             for i, m in enumerate(metrics): print(f" {i+1}) {m}")
-            
             try:
                 m_idx = int(input("Choose metric number: ")) - 1
                 metric_name = metrics[m_idx]
-            except:
-                print("❌ Invalid selection."); return
-            
-            # Chiama la funzione in modalità interattiva
+            except: print("❌ Invalid selection."); return
             self.process_jump(sel_jump, metric_name, interactive=True)
 
-
-        # --- MODO 2: Batch per Metrica ---
         elif mode == '2':
             print("\n--- AVAILABLE METRICS (Global) ---")
             for i, m in enumerate(supported_metrics): print(f" {i+1}) {m}")
-            
             try:
                 m_idx = int(input("Choose metric number: ")) - 1
                 metric_name = supported_metrics[m_idx]
-            except:
-                print("❌ Invalid selection."); return
+            except: print("❌ Invalid selection."); return
 
             print(f"\n🔍 Finding jumps for '{metric_name}'...")
             valid_jumps = []
@@ -687,10 +617,8 @@ class MetricsVisualizer:
                 if metric_name in self.get_available_metrics(jid):
                     valid_jumps.append(jid)
             
-            if not valid_jumps:
-                print(f"❌ No jumps found for {metric_name}."); return
-
-            print(f"Found {len(valid_jumps)} jumps: {valid_jumps}")
+            if not valid_jumps: print(f"❌ No jumps found for {metric_name}."); return
+            print(f"Found {len(valid_jumps)} jumps.")
             confirm = input("Start batch processing and saving? (y/n): ").lower()
             
             if confirm == 'y':
@@ -702,7 +630,5 @@ class MetricsVisualizer:
                 print("Cancelled.")
 
 if __name__ == "__main__":
-    script_dir = Path(__file__).resolve().parent
-    root_dir = script_dir.parent.parent
-    viz = MetricsVisualizer(dataset_root=root_dir)
+    viz = MetricsVisualizer()
     viz.visualize_interactive()

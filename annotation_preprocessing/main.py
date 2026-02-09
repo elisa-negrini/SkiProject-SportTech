@@ -3,7 +3,6 @@ from utils.box_filter import filter_boxes
 from utils.interpolator import Interpolator
 from utils.visualizer import Visualizer
 from utils.normalizer import Normalizer
-from utils.metrics_calculator import MetricsCalculator
 
 def get_input_range():
     val = input("\nEnter Jump range (e.g. '1-5') or single number ('6'): ").strip()
@@ -19,13 +18,10 @@ def main():
     do_interp = input("Interpolate? (y/n): ").lower().startswith('y')
     do_vis_video = input("Visualize Interpolation (Video)? (y/n): ").lower().startswith('y')
     do_norm = input("Normalize Data? (y/n): ").lower().startswith('y')
-    do_metrics = input("Calculate Metrics? (y/n): ").lower().startswith('y')
     
-    # Initialize Tools
     extractor = AnnotationManager()
     interpolator = Interpolator()
     normalizer = Normalizer()
-    metrics_calc = MetricsCalculator()
     viz = Visualizer()
 
     for jn in jumps:
@@ -50,32 +46,22 @@ def main():
             viz.create_video(jn)
 
         # 5. Normalization
-        # Reads 'annotations_interpolated' and creates 'annotations_normalized'
         if do_norm:
             print(f"   -> Normalizing JP{jn:04d}...")
             if normalizer.process(jn):
                 # 6. Visualize Normalization (Check Overlay)
-                # Uses 'annotations_normalized'
                 normalizer.visualize_normalization(jn)
             else:
                 print("⚠️ Normalization failed.")
 
     print("\n=== BATCH COMPLETE ===" )
 
-    # --- POST-PROCESSING ---
     
-    # Dataset CSV Creation (uses normalized annotations)
     if do_norm:
         print("\n--- Generating Normalized Dataset CSV ---")
         normalizer.create_dataset_csv()
-    
-    # Metrics Calculation (requires dataset CSV to exist)
-    if do_metrics:
-        print("\n--- Calculating Biomechanical Metrics ---")
-        if metrics_calc.load_data():
-            metrics_calc.process()
-        else:
-            print("⚠️ Metrics calculation failed. Ensure keypoints_dataset.csv exists.")
+        print(" Dataset CSV created for metrics computation")
+        print("   Next step: Run 'python metrics/metrics_computation.py' to calculate biomechanical metrics")
 
 if __name__ == "__main__":
     main()

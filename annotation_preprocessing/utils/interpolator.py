@@ -53,18 +53,15 @@ class Interpolator:
             print(f"❌ Missing JSON or boxes_filtered.txt for {jump_id}")
             return False
 
-        # Load Data
         with open(input_json, "r") as f:
             coco = json.load(f)
         
-        # Load Manual BBoxes
         bbox_list = []
         with open(boxes_file, 'r') as f:
             for line in f:
                 if line.strip() and not line.startswith('['):
                     bbox_list.append([int(float(x)) for x in line.strip().split(',')])
 
-        # Sync Logic (Replicating original logic exactly)
         def get_idx(path):
             s = set()
             for p in glob.glob(str(path / "*.jpg")):
@@ -86,7 +83,6 @@ class Interpolator:
 
         bbox_map = {k: v for k, v in zip(kept_frames, bbox_list)}
 
-        # Update Originals with GT Bboxes
         img_id_map = {}
         for img in coco["images"]:
             fname = img.get("extra", {}).get("name", img["file_name"])
@@ -97,7 +93,6 @@ class Interpolator:
             if fnum in bbox_map:
                 ann["bbox"] = bbox_map[fnum]
 
-        # Interpolation
         ann_by_img = {a["image_id"]: a for a in coco["annotations"]}
         annotated_ids = set(ann_by_img.keys())
         
@@ -124,11 +119,9 @@ class Interpolator:
             for cur in range(fa + 1, fb):
                 t = (cur - fa) / (fb - fa)
                 
-                # New Image
                 new_img = copy.deepcopy(img_a)
                 new_img["id"] = next_img_id
                 
-                # Fix naming
                 base_name = img_a["file_name"]
                 prefix = re.match(r"(.*?)(\d+)", base_name).group(1)
                 suffix = base_name.split('.')[-1]
@@ -141,7 +134,6 @@ class Interpolator:
                 new_imgs.append(new_img)
                 next_img_id += 1
 
-                # New Annotation
                 new_ann = copy.deepcopy(ann_a)
                 new_ann["id"] = next_ann_id
                 new_ann["image_id"] = new_img["id"]
@@ -161,5 +153,5 @@ class Interpolator:
         with open(output_json, "w") as f:
             json.dump(coco, f, indent=2)
         
-        print(f"✅ Interpolation done. Added {len(new_anns)} frames.")
+        print(f" Interpolation done. Added {len(new_anns)} frames.")
         return True

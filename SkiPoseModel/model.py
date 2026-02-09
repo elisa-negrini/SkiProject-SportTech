@@ -14,7 +14,7 @@ class AdaptationNetwork(LightningModule):
         self.FLAGS = FLAGS
         self.save_hyperparameters(ignore=['FLAGS'])
 
-        self.ski_joints = [19, 20, 21, 22, 12, 13, 14, 15]
+        self.ski_joints = FLAGS.ski_joints if isinstance(FLAGS.ski_joints, list) else list(map(int, FLAGS.ski_joints))
 
         self.encoder = nn.Sequential(
             nn.Linear(2, 128),  
@@ -113,7 +113,7 @@ class AdaptationNetwork(LightningModule):
             all_preds = torch.cat(self.test_preds, dim=0).float().numpy()
             all_gts = torch.cat(self.test_gts, dim=0).float().numpy()
             
-            save_path = "test_results_full.pkl"
+            save_path = "test_results.pkl"
             with open(save_path, 'wb') as f:
                 pkl.dump({'pred': all_preds, 'gt': all_gts}, f)
                 

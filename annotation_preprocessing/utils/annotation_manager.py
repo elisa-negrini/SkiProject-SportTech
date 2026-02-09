@@ -24,7 +24,6 @@ class AnnotationManager:
         with open(self.source_ann_path, 'r') as f:
             coco_data = json.load(f)
 
-        # Filter images by tag
         images_to_keep = []
         image_ids_to_keep = set()
         
@@ -38,7 +37,6 @@ class AnnotationManager:
             print(f"❌ No images found for tag {tag_to_search}")
             return False
 
-        # Filter annotations
         annotations_to_keep = [
             ann for ann in coco_data['annotations'] 
             if ann['image_id'] in image_ids_to_keep
@@ -55,5 +53,5 @@ class AnnotationManager:
         with open(target_ann_path, 'w') as f:
             json.dump(new_coco_data, f, indent=4)
         
-        print(f"✅ Extracted {len(images_to_keep)} images to {target_ann_path}")
+        print(f" Extracted {len(images_to_keep)} images to {target_ann_path}")
         return True

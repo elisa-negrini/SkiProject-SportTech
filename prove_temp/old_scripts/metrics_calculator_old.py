@@ -6,8 +6,8 @@ import glob
 class MetricsCalculator:
     def __init__(self):
         # --- CONFIGURATION ---
-        self.keypoints_file = 'keypoints_dataset.csv'
-        self.phases_file = 'jump_phases_SkiTB.csv'
+        self.keypoints_file = 'dataset/keypoints_dataset.csv'
+        self.phases_file = 'dataset/jump_phases_SkiTB.csv'
         self.output_detailed = 'metrics_per_frame.csv'
         self.output_summary = 'metrics_summary_per_jump.csv'
         

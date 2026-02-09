@@ -18,7 +18,6 @@ class Normalizer:
     def __init__(self):
         self.dataset_dir = Path('dataset/annotations')
         
-        # Mapping ID keypoints (Sistema Roboflow/COCO)
         self.anchor_ids = {
             'neck': '2',
             'r_shoulder': '3', 'l_shoulder': '6',
@@ -52,11 +51,9 @@ class Normalizer:
     
     def calculate_scale_and_root(self, kpts, kpt_names):
         """Compute hybrid scale and root (pelvis)."""
-        # Get keypoints
         pts = {k: self.get_point(kpts, v, kpt_names) 
                for k, v in self.anchor_ids.items()}
         
-        # 1. Compute root (pelvis)
         root = None
         if pts['r_hip'] is not None and pts['l_hip'] is not None:
             root = (pts['r_hip'] + pts['l_hip']) / 2.0
@@ -68,9 +65,6 @@ class Normalizer:
         if root is None:
             return None, None
         
-        # --- 2. Calcolo Lunghezze Segmenti (Hybrid) ---
-        
-        # Torso (neck -> pelvis)
         torso_top = pts['neck']
         if torso_top is None and pts['r_shoulder'] is not None and pts['l_shoulder'] is not None:
             torso_top = (pts['r_shoulder'] + pts['l_shoulder']) / 2
@@ -87,7 +81,6 @@ class Normalizer:
         len_shin_l = self.get_dist(pts['l_knee'], pts['l_ankle'])
         len_leg_l = len_thigh_l + len_shin_l
         
-        # Use longest visible leg
         len_leg_max = max(len_leg_r, len_leg_l)
         if len_leg_max == 0: len_leg_max = len_torso * 1.2 # fallback
         
@@ -105,10 +98,8 @@ class Normalizer:
         """Apply anatomical normalization and fixed scaling."""
         kpts = ann['keypoints'].copy()
         
-        # Fixed scaling settings
         # FIXED_LIMIT defines range [-2.0, +2.0] mapped to [0,1]
         FIXED_LIMIT = 2.0          
-        # Fattore per schiacciare il range [-LIMIT, +LIMIT] dentro [0, 1]
         # Formula: new_val = 0.5 + (old_val / (2 * LIMIT))
         scale_factor = 1.0 / (2 * FIXED_LIMIT)
         
@@ -116,24 +107,18 @@ class Normalizer:
             x, y, v = kpts[i], kpts[i+1], kpts[i+2]
             
             if v > 0:
-                # 1. Normalizzazione Anatomica (Body Units)
-                # (0,0) è il bacino
                 x_rel = (x - root[0]) / scale
                 y_rel = (y - root[1]) / scale
                 
-                # 2. Scaling Fisso [0, 1]
-                # Sposta 0 -> 0.5
                 x_final = 0.5 + (x_rel * scale_factor)
                 y_final = 0.5 + (y_rel * scale_factor)
                 
-                # Clipping di sicurezza (per errori grossolani > 3.0)
                 x_final = np.clip(x_final, 0.0, 1.0)
                 y_final = np.clip(y_final, 0.0, 1.0)
                 
                 kpts[i] = x_final
                 kpts[i + 1] = y_final
             else:
-                # Non-visible or invalid points: place at center (0.5)
                 kpts[i] = 0.5
                 kpts[i + 1] = 0.5
         
@@ -166,19 +151,17 @@ class Normalizer:
             for ann in data['annotations']:
                 if ann['category_id'] != cat['id']: continue
                 
-                # Calcola Root e Scala (Hybrid)
                 root, scale = self.calculate_scale_and_root(ann['keypoints'], kpt_names)
                 
-                if root is None: continue # skip frame without pelvis
+                if root is None: continue
                 
-                # Apply normalization
                 self.normalize_annotation(ann, kpt_names, root, scale)
                 normalized_count += 1
             
             with open(output_file, 'w') as f:
                 json.dump(data, f, indent=2)
             
-            print(f"   ✅ Normalized {normalized_count} frames -> {output_file.name}")
+            print(f"    Normalized {normalized_count} frames -> {output_file.name}")
             return True
             
         except Exception as e:
@@ -186,10 +169,6 @@ class Normalizer:
             return False
 
     def visualize_normalization(self, jump_num):
-        """
-        Crea una GRIGLIA di plot per visualizzare tutti i frame normalizzati.
-        Usa Matplotlib per mostrare assi e range [0, 1].
-        """
 
         jump_id = f"JP{jump_num:04d}"
         jump_dir = self.dataset_dir / jump_id
@@ -211,7 +190,6 @@ class Normalizer:
             kpt_names = cat['keypoints']
             skeleton = cat.get('skeleton', [])
             
-            # Filtra solo le annotazioni rilevanti
             annotations = [ann for ann in data['annotations'] if ann['category_id'] == cat['id']]
             num_frames = len(annotations)
             
@@ -219,11 +197,9 @@ class Normalizer:
                 print("   ⚠️  No annotations found.")
                 return False
 
-            # --- SETUP GRIGLIA ---
             cols = 8
             rows = math.ceil(num_frames / cols)
             
-            # Dimensione figura: abbastanza grande per leggere i tick
             fig, axes = plt.subplots(rows, cols, figsize=(cols*3, rows*3))
             axes = axes.flatten()
             
@@ -233,29 +209,21 @@ class Normalizer:
                 ax = axes[idx]
                 kpts = ann['keypoints']
                 
-                # Dizionario per disegnare le linee
                 pts_map = {}
                 
-                # --- 1. PLOT PUNTI ---
                 for i in range(0, len(kpts), 3):
                     x, y, v = kpts[i], kpts[i+1], kpts[i+2]
                     
-                    # Salviamo per le linee
                     pts_map[i//3] = (x, y)
                     
-                    # Colore: Sci = Blu, Corpo = Rosso
-                    # Lista ID sci basata sui tuoi script precedenti (adattare se necessario)
-                    # Verifica i nomi nel kpt_names per sicurezza, qui uso indici comuni
+                    
                     name = kpt_names[i//3]
                     is_ski = name in ['15','16','22','23','12','13','14','21','20','19']
                     color = 'blue' if is_ski else 'red'
                     
-                    # Disegna punto (anche se v=0, è stato forzato a 0.5, vogliamo vederlo)
-                    # Se v=0 lo facciamo più trasparente o grigio magari
                     alpha = 1.0 if v > 0 else 0.3
                     ax.scatter(x, y, s=15, c=color, alpha=alpha, zorder=5)
 
-                # --- 2. PLOT LINEE (SCHELETRO) ---
                 for p1, p2 in skeleton:
                     idx1, idx2 = p1 - 1, p2 - 1
                     if idx1 in pts_map and idx2 in pts_map:
@@ -263,24 +231,19 @@ class Normalizer:
                         x2, y2 = pts_map[idx2]
                         ax.plot([x1, x2], [y1, y2], 'gray', linewidth=1, alpha=0.6)
 
-                # --- 3. CONFIGURAZIONE ASSI (0-1) ---
                 ax.set_xlim(0, 1)
-                ax.set_ylim(1, 0) # Invertiamo Y (0 in alto come nelle immagini)
+                ax.set_ylim(1, 0) 
                 
-                # Griglia e Ticks per verifica visiva
                 ax.grid(True, linestyle=':', alpha=0.5)
                 ax.set_xticks([0, 0.5, 1])
                 ax.set_yticks([0, 0.5, 1])
                 ax.tick_params(labelsize=6)
                 
-                # Titolo frame
                 ax.set_title(f"Fr {idx}", fontsize=8)
                 
-                # Centro (Bacino teorico)
                 ax.axhline(0.5, color='green', linewidth=0.5, alpha=0.3)
                 ax.axvline(0.5, color='green', linewidth=0.5, alpha=0.3)
 
-            # Nascondi subplot vuoti
             for j in range(idx + 1, len(axes)):
                 axes[j].axis('off')
 
@@ -288,7 +251,7 @@ class Normalizer:
             plt.savefig(str(output_image), dpi=100)
             plt.close()
             
-            print(f"   ✅ Grid visualization saved: {output_image.name}")
+            print(f"    Grid visualization saved: {output_image.name}")
             return True
             
         except Exception as e:
@@ -297,15 +260,10 @@ class Normalizer:
             traceback.print_exc()
             return False
         
-    def create_dataset_csv(self, output_name='keypoints_dataset.csv'):
-            """
-            NUOVA FUNZIONE:
-            Scansiona tutti i file JSON normalizzati e crea un unico CSV nella root.
-            Contiene: jump_id, frame_name, e tutte le coordinate (x,y,v).
-            """
+    def create_dataset_csv(self, output_name='dataset/keypoints_dataset.csv'):
+            
             print(f"\n--- Creating dataset CSV ({output_name}) ---")
             
-            # Find all normalized JSON files recursively
             pattern = str(self.dataset_dir / "**" / "*annotations_normalized*.json")
             files = glob.glob(pattern, recursive=True)
             
@@ -322,7 +280,6 @@ class Normalizer:
                     with open(json_file, 'r') as f:
                         data = json.load(f)
                     
-                    # Estrae Jump ID dal nome cartella o file (es. JP0005)
                     path_parts = Path(json_file).parts
                     jump_id = "unknown"
                     for part in path_parts:
@@ -334,7 +291,6 @@ class Normalizer:
                     if not cat: continue
                     
                     kpt_names = cat['keypoints']
-                    # Mappa ID immagine -> Nome file
                     img_map = {img['id']: img['file_name'] for img in data['images']}
                     
                     for ann in data['annotations']:
@@ -346,7 +302,6 @@ class Normalizer:
                             'image_id': ann['image_id']
                         }
                         
-                        # Aggiunge keypoints appiattiti
                         kpts = ann['keypoints']
                         for i, name in enumerate(kpt_names):
                             x, y, v = kpts[i*3], kpts[i*3+1], kpts[i*3+2]
@@ -363,19 +318,18 @@ class Normalizer:
                 print("⚠️  No data extracted.")
                 return False
 
-            # Create DataFrame
             df = pd.DataFrame(all_rows)
             
-            # Smart sorting (by jump_id and frame number)
             try:
-                # Extract digits from frame (e.g. 00350 from 00350.jpg) for sorting
                 df['sort_frame'] = df['frame_name'].apply(lambda x: int(''.join(filter(str.isdigit, str(x)))))
                 df = df.sort_values(by=['jump_id', 'sort_frame'])
                 df = df.drop(columns=['sort_frame'])
             except:
                 df = df.sort_values(by=['jump_id', 'frame_name'])
             
-            # Save CSV at root
+            # Create dataset directory if it doesn't exist
+            Path(output_name).parent.mkdir(parents=True, exist_ok=True)
+            
             df.to_csv(output_name, index=False)
             print(f"✅ Dataset saved: {output_name}")
             print(f"   Total frames: {len(df)}")

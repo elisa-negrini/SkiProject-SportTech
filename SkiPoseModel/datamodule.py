@@ -27,7 +27,7 @@ class SkijumpDataModule(pl.LightningDataModule):
         self.num_workers = getattr(FLAGS, 'num_workers', 2)
 
     def train_dataloader(self):
-        working_dir = os.path.join(self.FLAGS.dataset_dir, self.FLAGS.dataset)
+        working_dir = os.path.join(self.FLAGS.dataset_dir)
         dataset_path = os.path.join(working_dir, 'train.pkl')
 
         dataset = SkijumpDataset(dataset_path, self.FLAGS)
@@ -42,7 +42,7 @@ class SkijumpDataModule(pl.LightningDataModule):
         return train_loader
 
     def val_dataloader(self):
-        working_dir = os.path.join(self.FLAGS.dataset_dir, self.FLAGS.dataset)
+        working_dir = os.path.join(self.FLAGS.dataset_dir)
         dataset_path = os.path.join(working_dir, 'val.pkl')
 
         dataset = SkijumpDataset(dataset_path, self.FLAGS)
@@ -57,7 +57,7 @@ class SkijumpDataModule(pl.LightningDataModule):
         return val_loader
 
     def test_dataloader(self):
-        working_dir = os.path.join(self.FLAGS.dataset_dir, self.FLAGS.dataset)
+        working_dir = os.path.join(self.FLAGS.dataset_dir)
         dataset_path = os.path.join(working_dir, 'test.pkl')
 
         dataset = SkijumpDataset(dataset_path, self.FLAGS)
@@ -75,7 +75,6 @@ class SkijumpDataModule(pl.LightningDataModule):
 class SkijumpDataset(Dataset):
     
     def __init__(self, data_path, FLAGS=None):
-        
         self.flags = FLAGS
         self.data_path = data_path
         

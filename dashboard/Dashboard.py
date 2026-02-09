@@ -8,11 +8,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CONFIGURAZIONE PATH ---
-# Trova la cartella corrente (dashboard/)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# --- HOME PAGE CONTENT ---
 col_text, col_img = st.columns([4, 1], gap="medium", vertical_alignment="bottom")
 
 with col_text:
@@ -30,9 +27,7 @@ with col_text:
     """)
 
 with col_img:
-    # L'immagine skeleton.png è nella stessa cartella di Dashboard.py
     skeleton_path = os.path.join(CURRENT_DIR, "skeleton.png")
-    
     if os.path.exists(skeleton_path):
         st.image(
             skeleton_path, 

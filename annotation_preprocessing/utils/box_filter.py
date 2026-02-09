@@ -24,12 +24,10 @@ def filter_boxes(jump_number, frames_root="dataset/frames"):
         print(f"❌ boxes.txt not found in {base_path}")
         return False
 
-    # Get indices from subfolders
     main_idx = get_indices(str(base_path))
     removed_idx = get_indices(str(base_path / 'removed'))
     occluded_idx = get_indices(str(base_path / 'occluded'))
     
-    # Calculate skip logic
     all_indices = main_idx | removed_idx | occluded_idx
     all_sorted = sorted(list(all_indices), key=int)
     to_remove = all_indices - main_idx
@@ -44,7 +42,7 @@ def filter_boxes(jump_number, frames_root="dataset/frames"):
                     outfile.write(line)
                     kept += 1
         
-        print(f"✅ Boxes filtered. Lines kept: {kept}")
+        print(f" Boxes filtered. Lines kept: {kept}")
         return True
     except Exception as e:
         print(f"❌ Error filtering boxes: {e}")

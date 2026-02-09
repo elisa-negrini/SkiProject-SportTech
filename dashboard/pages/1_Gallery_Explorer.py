@@ -4,25 +4,17 @@ from PIL import Image
 import os
 import sys
 
-# --- GESTIONE PERCORSI IMPORT ---
-# Ottieni la cartella corrente (dashboard/pages)
 CURRENT_PAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Ottieni la cartella genitore (dashboard)
 PARENT_DIR = os.path.dirname(CURRENT_PAGE_DIR)
 
-# Aggiungi la cartella genitore al path di sistema per poter importare utils.py
 sys.path.append(PARENT_DIR)
 
 from utils import load_data_from_folders
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Ski Jump Dataset Gallery", page_icon="📂", layout="wide")
-
-# --- SIDEBAR ---
 st.sidebar.title("Gallery Settings")
 image_limit = st.sidebar.slider("Max images to load", min_value=50, max_value=50000, value=50000, step=50)
 
-# --- LOADING ---
 try:
     raw_data = load_data_from_folders(limit=image_limit)
     df = pd.DataFrame(raw_data)
@@ -30,7 +22,6 @@ except Exception as e:
     st.error(f"Error loading data: {e}")
     st.stop()
 
-# --- HEADER ---
 col_text, col_img = st.columns([5, 1], gap="medium", vertical_alignment="bottom")
 
 with col_text:
@@ -42,9 +33,7 @@ with col_text:
     """)
 
 with col_img:
-    # L'immagine skeleton.png sta nella cartella genitore (dashboard/)
     skeleton_path = os.path.join(PARENT_DIR, "skeleton.png")
-    
     if os.path.exists(skeleton_path):
         st.image(skeleton_path, caption="23-Keypoint Skeleton", width='stretch')
     else:
@@ -56,7 +45,6 @@ if df.empty:
     st.warning("No images found. Please check that 'dataset' folder exists inside 'dashboard'.")
     st.stop()
 
-# --- FILTRI ---
 st.subheader("Filter Gallery")
 c1, c2, c3, c4 = st.columns(4)
 
@@ -72,7 +60,6 @@ with c4:
     all_phases = sorted([str(p) for p in df['phase'].unique() if p is not None])
     phase_filter = st.selectbox("4. Filter by Phase", ["All"] + all_phases)
 
-# --- LOGICA FILTRO ---
 filtered_df = df.copy()
 
 if vis_filter == "Original Frames (Raw)":
@@ -89,7 +76,6 @@ if athlete_filter:
 if phase_filter != "All":
     filtered_df = filtered_df[filtered_df['phase'] == phase_filter]
 
-# --- DISPLAY ---
 st.markdown(f"**Results:** {len(filtered_df)} images found")
 
 if filtered_df.empty:
@@ -101,11 +87,9 @@ else:
         with col:
             img_path = row['image_path']
             metric_label = row['metric_clean']
-            
             caption_text = f"{row['jump_id']} - {row['phase']} - {row['skier']}"
             if metric_label != "Raw Frame":
                 caption_text += f"\nMetric: {metric_label}"
-            
             if img_path and os.path.exists(img_path):
                 try:
                     st.image(img_path, width='stretch')
