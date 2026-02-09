@@ -1,7 +1,4 @@
 """
-Data Quality Check for Ski Jumping Metrics
-==========================================
-
 This script validates all computed metrics and identifies:
 1. Physically impossible values (outside validity ranges)
 2. Statistical outliers (beyond 3 standard deviations)
@@ -9,13 +6,14 @@ This script validates all computed metrics and identifies:
 
 Output:
 - data_quality/outliers_report.csv
+- data_quality/warnings_report.csv
 - data_quality/data_quality_summary.txt
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -24,47 +22,37 @@ class DataQualityChecker:
     """
     Validates metrics data for physically impossible or statistically extreme values.
     """
-    
-    # Validity ranges based on biomechanical constraints
+    # removed: flight_std: (0,15), flight_jitter: (0, 10), flight mean_bsa: (0, 45)
+    # removed: avg_v_style_front: (10, 70), avg_v_style_back: (10, 70) 
+    # body_ski_inclination: (0,45), knee_angle_at_takeoff; (90,180)
+    # takeoff_peak_velocity: (50, 800), telemark_leg_angle: (0, 90),
+
     VALIDITY_RANGES = {
-        # Flight metrics (kept: std, jitter, mean_bsa)
-        'flight_std': (0, 15),               # BSA shouldn't vary > 15 degrees
-        'flight_jitter': (0, 10),            # Frame-to-frame variation
-        'flight_mean_bsa': (0, 45),          # BSA inclination 0-45 degrees
-        # REMOVED: flight_range, flight_trend (redundant features)
-        
-        # Body-ski angle
-        'avg_body_ski_angle': (0, 45),       # Inclination angle
-        'body_ski_inclination': (0, 45),     # Same metric, different name
-        
-        # V-style
-        'avg_v_style_front': (10, 70),       # V-style angle range
+        # V-style angles
+        'avg_v_style_front': (10, 70),
         'avg_v_style_back': (10, 70),
         
-        # Knee dynamics (kept: peak_velocity, angle_at_takeoff)
-        'knee_peak_velocity': (50, 800),     # Degrees per second
-        'knee_angle_at_takeoff': (90, 180),  # Full extension ~180
+        # Body-ski angle
+        'avg_body_ski_angle': (0, 45),
+        
+        # Knee dynamics
+        'knee_peak_velocity': (50, 800),
         'takeoff_knee_angle': (90, 180),
-        # REMOVED: knee_mean_velocity, knee_extension_range (redundant)
+        'takeoff_peak_velocity': (50, 800),
         
         # Takeoff dynamics
-        'takeoff_peak_velocity': (50, 800),
-        'takeoff_timing_offset': (-10, 10),  # Frames from expected
+        'takeoff_timing_offset': (-10, 10),
         
-        # Landing metrics (kept: hip_velocity, knee_compression)
-        'landing_hip_velocity': (0, 3),      # Normalized velocity
-        'landing_knee_compression': (0, 90), # Degrees
-        # REMOVED: landing_hip_drop, landing_smoothness_score, landing_absorption_rate
-        
-        # Telemark
-        'telemark_scissor_mean': (0, 0.30),  # Normalized
-        'telemark_stability': (0, 50),       # Std of telemark position
-        'telemark_leg_angle': (0, 90),
+        # Landing metrics
+        'landing_hip_velocity': (0, 3),
+        'landing_knee_compression': (0, 90),
+        'telemark_scissor_mean': (0, 0.30),
+        'telemark_stability': (0, 50),
         'avg_telemark_leg_angle': (0, 90),
         
         # Symmetry
-        'avg_symmetry_index_front': (0, 30),
         'avg_symmetry_index_back': (0, 30),
+        'avg_symmetry_index_front': (0, 30),
     }
     
     def __init__(self):
@@ -72,50 +60,24 @@ class DataQualityChecker:
         self.base_path = Path(__file__).parent.parent
         self.metrics_path = Path(__file__).parent
         
-        # Input files
-        self.timeseries_file = self.metrics_path / 'timeseries_metrics' / 'timeseries_summary.csv'
-        self.core_metrics_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
-        self.advanced_file = self.metrics_path / 'advanced_metrics' / 'advanced_metrics_summary.csv'
+        self.metrics_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
         
-        # Output directory
         self.output_dir = self.metrics_path / 'data_quality'
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Results storage
         self.outliers = []
         self.warnings = []
     
     def load_data(self) -> pd.DataFrame:
-        """Load and merge all metrics data."""
+        """Load metrics data from single CSV."""
         
-        dfs = []
-        
-        if self.timeseries_file.exists():
-            df_ts = pd.read_csv(self.timeseries_file)
-            dfs.append(df_ts)
-            print(f"✅ Loaded timeseries: {len(df_ts)} jumps")
-        
-        if self.core_metrics_file.exists():
-            df_core = pd.read_csv(self.core_metrics_file)
-            dfs.append(df_core)
-            print(f"✅ Loaded core metrics: {len(df_core)} jumps")
-        
-        if self.advanced_file.exists():
-            df_adv = pd.read_csv(self.advanced_file)
-            dfs.append(df_adv)
-            print(f"✅ Loaded advanced metrics: {len(df_adv)} jumps")
-        
-        if not dfs:
-            print("❌ No metrics files found!")
+        if not self.metrics_file.exists():
+            print(f"❌ File not found: {self.metrics_file}")
             return pd.DataFrame()
         
-        # Merge on jump_id
-        df = dfs[0]
-        for other_df in dfs[1:]:
-            if 'jump_id' in other_df.columns:
-                df = df.merge(other_df, on='jump_id', how='outer', suffixes=('', '_dup'))
-                # Remove duplicate columns
-                df = df[[c for c in df.columns if not c.endswith('_dup')]]
+        df = pd.read_csv(self.metrics_file)
+        print(f" Loaded metrics: {len(df)} jumps, {len(df.columns)} columns")
+        print(f"   File: {self.metrics_file}")
         
         return df
     
@@ -126,13 +88,14 @@ class DataQualityChecker:
         print("CHECKING VALIDITY RANGES")
         print("=" * 60)
         
+        issues_found = 0
+        
         for metric, (min_val, max_val) in self.VALIDITY_RANGES.items():
             if metric not in df.columns:
                 continue
             
-            # Find values outside range
-            mask_low = df[metric] < min_val
-            mask_high = df[metric] > max_val
+            mask_low = (df[metric] < min_val) & (df[metric].notna())
+            mask_high = (df[metric] > max_val) & (df[metric].notna())
             
             invalid_low = df[mask_low][['jump_id', metric]].copy()
             invalid_high = df[mask_high][['jump_id', metric]].copy()
@@ -149,6 +112,7 @@ class DataQualityChecker:
                         'action': 'EXCLUDE'
                     })
                     print(f"  ❌ {row['jump_id']}: {metric}={row[metric]:.2f} < {min_val}")
+                    issues_found += 1
             
             if len(invalid_high) > 0:
                 for _, row in invalid_high.iterrows():
@@ -162,16 +126,22 @@ class DataQualityChecker:
                         'action': 'EXCLUDE'
                     })
                     print(f"  ❌ {row['jump_id']}: {metric}={row[metric]:.2f} > {max_val}")
+                    issues_found += 1
+        
+        if issues_found == 0:
+            print("   No validity range violations found!")
     
     def check_statistical_outliers(self, df: pd.DataFrame, z_threshold: float = 3.0):
         """Identify statistical outliers using z-score."""
         
         print("\n" + "=" * 60)
-        print("CHECKING STATISTICAL OUTLIERS (z > 3)")
+        print(f"CHECKING STATISTICAL OUTLIERS (z > {z_threshold})")
         print("=" * 60)
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
-        numeric_cols = [c for c in numeric_cols if c != 'jump_id']
+        numeric_cols = [c for c in numeric_cols if c != 'jump_id' and c not in self.VALIDITY_RANGES]
+        
+        warnings_found = 0
         
         for col in numeric_cols:
             values = df[col].dropna()
@@ -194,91 +164,109 @@ class DataQualityChecker:
                     value = df.loc[idx, col]
                     z = z_scores[idx]
                     
-                    # Don't duplicate if already flagged by validity check
                     if not any(o['jump_id'] == jump_id and o['metric'] == col for o in self.outliers):
                         self.warnings.append({
                             'jump_id': jump_id,
                             'metric': col,
                             'value': value,
                             'z_score': z,
+                            'mean': mean,
+                            'std': std,
                             'issue': 'STATISTICAL_OUTLIER',
                             'action': 'VERIFY'
                         })
                         print(f"  ⚠️ {jump_id}: {col}={value:.2f} (z={z:.2f})")
+                        warnings_found += 1
+        
+        if warnings_found == 0:
+            print("  ✅ No statistical outliers found!")
     
     def generate_report(self, df: pd.DataFrame):
         """Generate summary report and CSV output."""
         
-        # Save outliers CSV
         if self.outliers:
             df_outliers = pd.DataFrame(self.outliers)
-            df_outliers.to_csv(self.output_dir / 'outliers_report.csv', index=False)
-            print(f"\n✅ Outliers saved: {self.output_dir / 'outliers_report.csv'}")
+            outliers_path = self.output_dir / 'outliers_report.csv'
+            df_outliers.to_csv(outliers_path, index=False)
+            print(f"\n✅ Outliers report: {outliers_path}")
         
-        # Save warnings CSV
         if self.warnings:
             df_warnings = pd.DataFrame(self.warnings)
-            df_warnings.to_csv(self.output_dir / 'warnings_report.csv', index=False)
-            print(f"✅ Warnings saved: {self.output_dir / 'warnings_report.csv'}")
+            warnings_path = self.output_dir / 'warnings_report.csv'
+            df_warnings.to_csv(warnings_path, index=False)
+            print(f"✅ Warnings report: {warnings_path}")
         
-        # Generate text summary
         summary_file = self.output_dir / 'data_quality_summary.txt'
         
         with open(summary_file, 'w', encoding='utf-8') as f:
-            f.write("=" * 60 + "\n")
-            f.write("DATA QUALITY REPORT\n")
-            f.write("=" * 60 + "\n\n")
+            f.write("=" * 70 + "\n")
+            f.write("DATA QUALITY REPORT - SKI JUMPING METRICS\n")
+            f.write("=" * 70 + "\n\n")
             
             f.write(f"Total jumps analyzed: {len(df)}\n")
             f.write(f"Total metrics checked: {len(self.VALIDITY_RANGES)}\n\n")
             
             f.write("CRITICAL ISSUES (values outside physical range):\n")
-            f.write("-" * 40 + "\n")
+            f.write("-" * 70 + "\n")
             if self.outliers:
                 for o in self.outliers:
                     f.write(f"  {o['jump_id']}: {o['metric']}={o['value']:.2f} ")
-                    f.write(f"(valid: {o['min_valid']}-{o['max_valid']}) -> {o['action']}\n")
+                    f.write(f"(valid range: {o['min_valid']}-{o['max_valid']}) ")
+                    f.write(f"→ {o['action']}\n")
             else:
                 f.write("  None found!\n")
             
             f.write(f"\nTotal critical issues: {len(self.outliers)}\n\n")
             
             f.write("WARNINGS (statistical outliers, z > 3):\n")
-            f.write("-" * 40 + "\n")
+            f.write("-" * 70 + "\n")
             if self.warnings:
                 for w in self.warnings:
                     f.write(f"  {w['jump_id']}: {w['metric']}={w['value']:.2f} ")
-                    f.write(f"(z={w['z_score']:.2f}) -> {w['action']}\n")
+                    f.write(f"(z={w['z_score']:.2f}, μ={w['mean']:.2f}, σ={w['std']:.2f}) ")
+                    f.write(f"→ {w['action']}\n")
             else:
                 f.write("  None found!\n")
             
             f.write(f"\nTotal warnings: {len(self.warnings)}\n\n")
             
-            # Missing data summary
-            f.write("MISSING DATA SUMMARY:\n")
-            f.write("-" * 40 + "\n")
+            f.write("MISSING DATA ANALYSIS:\n")
+            f.write("-" * 70 + "\n")
             
+            missing_data = {}
             for col in df.columns:
                 if col == 'jump_id':
                     continue
                 n_missing = df[col].isna().sum()
                 if n_missing > 0:
                     pct = 100 * n_missing / len(df)
-                    f.write(f"  {col}: {n_missing}/{len(df)} missing ({pct:.0f}%)\n")
+                    missing_data[col] = (n_missing, pct)
+            
+            if missing_data:
+                for col, (n_missing, pct) in sorted(missing_data.items(), key=lambda x: -x[1][1]):
+                    f.write(f"  {col}: {n_missing}/{len(df)} missing ({pct:.1f}%)\n")
+            else:
+                f.write("  No missing data found!\n")
+            
+            f.write("\n" + "=" * 70 + "\n")
+            f.write("SUMMARY\n")
+            f.write("=" * 70 + "\n")
+            f.write(f"✅ Valid jumps: {len(df) - len(set(o['jump_id'] for o in self.outliers))}\n")
+            f.write(f"❌ Jumps with critical issues: {len(set(o['jump_id'] for o in self.outliers))}\n")
+            f.write(f"⚠️  Jumps with warnings: {len(set(w['jump_id'] for w in self.warnings))}\n")
         
-        print(f"✅ Summary saved: {summary_file}")
+        print(f" Summary report: {summary_file}")
     
     def run(self):
-        """Main execution."""
         
         print("=" * 60)
-        print("DATA QUALITY CHECK")
+        print("DATA QUALITY CHECK - SKI JUMPING METRICS")
         print("=" * 60)
         
         df = self.load_data()
         
         if df.empty:
-            print("No data to check!")
+            print("❌ No data to check!")
             return
         
         self.check_validity_ranges(df)
@@ -286,8 +274,8 @@ class DataQualityChecker:
         self.generate_report(df)
         
         print("\n" + "=" * 60)
-        print(f"SUMMARY: {len(self.outliers)} critical issues, {len(self.warnings)} warnings")
-        print("=" * 60)
+        print(f"FINAL SUMMARY: {len(self.outliers)} critical issues, {len(self.warnings)} warnings")
+        print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":

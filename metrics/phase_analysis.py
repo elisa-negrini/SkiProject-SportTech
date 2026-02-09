@@ -76,9 +76,9 @@ class PhaseAnalyzer:
         # PATH CONFIGURATION
         # =====================================================================
         self.base_path = Path(__file__).parent.parent
-        self.keypoints_file = self.base_path / 'keypoints_dataset.csv'
-        self.phases_file = self.base_path / 'jump_phases_SkiTB.csv'
-        self.jp_data_file = self.base_path / 'JP_data.csv'
+        self.keypoints_file = self.base_path / 'dataset' / 'keypoints_dataset.csv'
+        self.phases_file = self.base_path / 'dataset' / 'jump_phases_SkiTB.csv'
+        self.jp_data_file = self.base_path / 'dataset' / 'JP_data.csv'
         
         # Output
         self.output_dir = self.base_path / 'metrics' / 'phase_analysis'

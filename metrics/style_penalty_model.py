@@ -90,7 +90,7 @@ class StylePenaltyModel:
         print("\n📂 Loading data...")
         
         # Load JP data
-        jp_file = self.base_path / 'JP_data.csv'
+        jp_file = self.base_path / 'dataset' / 'JP_data.csv'
         df_jp = pd.read_csv(jp_file)
         df_jp['jump_id'] = df_jp['ID']
         
@@ -130,7 +130,7 @@ class StylePenaltyModel:
             print(f"   ⚠️ Time-series file not found: {ts_file}")
         
         # Load advanced metrics
-        adv_file = self.metrics_path / 'advanced_metrics' / 'advanced_metrics_summary.csv'
+        adv_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
         if adv_file.exists():
             df_adv = pd.read_csv(adv_file)
             df = df.merge(df_adv, on='jump_id', how='left')

@@ -136,7 +136,7 @@ class SkiJumpingMLModels:
         self.base_path = Path(__file__).parent.parent
         
         # Input files (from subfolders)
-        self.jp_data_file = self.base_path / 'JP_data.csv'
+        self.jp_data_file = self.base_path / 'dataset' / 'JP_data.csv'
         self.timeseries_metrics_file = self.base_path / 'metrics' / 'timeseries_metrics' / 'timeseries_summary.csv'
         self.advanced_metrics_file = self.base_path / 'metrics' / 'advanced_metrics' / 'advanced_metrics_summary.csv'
         self.old_metrics_file = self.base_path / 'metrics' / 'core_metrics' / 'metrics_summary_per_jump.csv'
