@@ -1,47 +1,41 @@
-============================================================
-DATA QUALITY REPORT
-============================================================
+======================================================================
+DATA QUALITY REPORT - SKI JUMPING METRICS
+======================================================================
 
-Total jumps analyzed: 23
-Total metrics checked: 20
+Total jumps analyzed: 30
+Total metrics checked: 14
 
 CRITICAL ISSUES (values outside physical range):
-----------------------------------------
-  JP0009: flight_std=21.88 (valid: 0-15) -> EXCLUDE
-  JP0011: flight_std=40.73 (valid: 0-15) -> EXCLUDE
-  JP0019: flight_std=17.08 (valid: 0-15) -> EXCLUDE
-  JP0030: landing_knee_compression=125.12 (valid: 0-90) -> EXCLUDE
-  JP0025: telemark_stability=71.06 (valid: 0-50) -> EXCLUDE
+----------------------------------------------------------------------
+  None found!
 
-Total critical issues: 5
+Total critical issues: 0
 
 WARNINGS (statistical outliers, z > 3):
-----------------------------------------
-  JP0011: flight_mean_bsa=22.37 (z=3.10) -> VERIFY
-  JP0011: flight_jitter=5.44 (z=3.06) -> VERIFY
-  JP0011: landing_hip_velocity=0.02 (z=3.56) -> VERIFY
+----------------------------------------------------------------------
+  None found!
 
-Total warnings: 3
+Total warnings: 0
 
-MISSING DATA SUMMARY:
-----------------------------------------
-  knee_peak_velocity: 8/23 missing (35%)
-  knee_angle_at_takeoff: 8/23 missing (35%)
-  flight_std: 3/23 missing (13%)
-  flight_mean_bsa: 3/23 missing (13%)
-  flight_jitter: 3/23 missing (13%)
-  landing_hip_velocity: 2/23 missing (9%)
-  landing_knee_compression: 2/23 missing (9%)
-  avg_v_style_front: 11/23 missing (48%)
-  avg_v_style_back: 20/23 missing (87%)
-  takeoff_knee_angle: 15/23 missing (65%)
-  avg_body_ski_angle: 3/23 missing (13%)
-  avg_symmetry_index_back: 18/23 missing (78%)
-  avg_telemark_proj_ski: 8/23 missing (35%)
-  avg_telemark_depth_ratio: 8/23 missing (35%)
-  avg_telemark_leg_angle: 8/23 missing (35%)
-  takeoff_timing_offset: 8/23 missing (35%)
-  takeoff_peak_velocity: 8/23 missing (35%)
-  telemark_scissor_mean: 13/23 missing (57%)
-  telemark_stability: 2/23 missing (9%)
-  landing_absorption_rate: 2/23 missing (9%)
+MISSING DATA ANALYSIS:
+----------------------------------------------------------------------
+  avg_v_style_back: 30/30 missing (100.0%)
+  avg_symmetry_index_back: 30/30 missing (100.0%)
+  avg_v_style_front: 15/30 missing (50.0%)
+  telemark_scissor_mean: 15/30 missing (50.0%)
+  avg_telemark_proj_ski: 9/30 missing (30.0%)
+  avg_telemark_depth_ratio: 9/30 missing (30.0%)
+  avg_telemark_leg_angle: 9/30 missing (30.0%)
+  takeoff_timing_offset: 7/30 missing (23.3%)
+  takeoff_peak_velocity: 7/30 missing (23.3%)
+  takeoff_knee_angle: 1/30 missing (3.3%)
+  avg_body_ski_angle: 1/30 missing (3.3%)
+  telemark_stability: 1/30 missing (3.3%)
+  landing_absorption_rate: 1/30 missing (3.3%)
+
+======================================================================
+SUMMARY
+======================================================================
+✅ Valid jumps: 30
+❌ Jumps with critical issues: 0
+⚠️  Jumps with warnings: 0

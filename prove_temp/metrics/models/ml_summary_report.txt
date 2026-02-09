@@ -1,0 +1,74 @@
+======================================================================
+MACHINE LEARNING ANALYSIS SUMMARY
+======================================================================
+
+
+TARGET: Style_Score
+--------------------------------------------------
+
+  Random Forest:
+    Samples: 100
+    R²:  -0.0056
+    MAE: 1.9024
+    MSE: 5.7213
+
+    Top 5 Features:
+      landing_knee_compression: 0.0740
+      telemark_stability: 0.0494
+      avg_body_ski_angle: 0.0340
+      avg_v_style_back: 0.0293
+      avg_v_style_front: 0.0224
+
+  Gradient Boosting:
+    Samples: 100
+    R²:  0.0305
+    MAE: 1.9060
+    MSE: 5.5160
+
+    Top 5 Features:
+      landing_knee_compression: 0.1194
+      avg_v_style_back: 0.1007
+      telemark_stability: 0.0883
+      avg_body_ski_angle: 0.0478
+      takeoff_peak_velocity: 0.0204
+
+  Ridge Regression:
+    Samples: 100
+    R²:  -0.6626
+    MAE: 2.2097
+    MSE: 9.4594
+
+TARGET: Physical_Score
+--------------------------------------------------
+
+  Random Forest:
+    Samples: 100
+    R²:  0.0108
+    MAE: 21.2616
+    MSE: 984.3552
+
+    Top 5 Features:
+      avg_v_style_front: 0.0628
+      knee_angle_at_takeoff: 0.0312
+      landing_hip_velocity: 0.0246
+      takeoff_knee_angle: 0.0203
+      avg_v_style_back: 0.0154
+
+  Gradient Boosting:
+    Samples: 100
+    R²:  -0.0093
+    MAE: 21.6157
+    MSE: 1004.3656
+
+    Top 5 Features:
+      avg_v_style_back: 0.1065
+      avg_v_style_front: 0.0877
+      landing_hip_velocity: 0.0222
+      knee_angle_at_takeoff: 0.0186
+      telemark_scissor_mean: 0.0155
+
+  Ridge Regression:
+    Samples: 100
+    R²:  -0.3821
+    MAE: 25.0607
+    MSE: 1375.2734

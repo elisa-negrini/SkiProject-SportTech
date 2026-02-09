@@ -1,27 +1,27 @@
 DTW vs CDTW CLUSTERING COMPARISON
 ============================================================
 
-Number of jumps: 20
+Number of jumps: 29
 Number of clusters: 3
 
 QUALITY METRICS:
 ----------------------------------------
-DTW Silhouette Score:  0.554
-CDTW Silhouette Score: 0.376
-Silhouette Difference: -0.178
+DTW Silhouette Score:  0.738
+CDTW Silhouette Score: 0.658
+Silhouette Difference: -0.080
 
 COMPUTATIONAL EFFICIENCY:
 ----------------------------------------
-DTW Time:  1.29s
-CDTW Time: 0.27s
-Speedup:   4.83x
+DTW Time:  2.10s
+CDTW Time: 0.42s
+Speedup:   4.95x
 
 CLUSTER STABILITY:
 ----------------------------------------
-Adjusted Rand Index: 0.087
+Adjusted Rand Index: 0.762
 (1.0 = identical clusterings, 0.0 = random)
 
 RECOMMENDATION:
 ----------------------------------------
-[WARN] Low stability - clusterings differ significantly.
-       Standard DTW may capture more nuanced patterns.
+[WARN] Moderate stability - some cluster assignments differ.
+       Review both clusterings for your specific analysis.

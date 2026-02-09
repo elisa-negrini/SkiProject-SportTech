@@ -31,23 +31,23 @@ EXCLUDED FEATURES:
 
 SELECTED FEATURES:
 ----------------------------------------
+  telemark_stability: 30/100 jumps (30%)
+  avg_body_ski_angle: 29/100 jumps (29%)
+  takeoff_knee_angle: 29/100 jumps (29%)
+  takeoff_timing_offset: 23/100 jumps (23%)
+  takeoff_peak_velocity: 23/100 jumps (23%)
   landing_hip_velocity: 21/100 jumps (21%)
   landing_knee_compression: 21/100 jumps (21%)
-  telemark_stability: 21/100 jumps (21%)
   flight_std: 20/100 jumps (20%)
   flight_mean_bsa: 20/100 jumps (20%)
   flight_jitter: 20/100 jumps (20%)
-  avg_body_ski_angle: 20/100 jumps (20%)
   stability_ratio: 20/100 jumps (20%)
   knee_peak_velocity: 15/100 jumps (15%)
   knee_angle_at_takeoff: 15/100 jumps (15%)
-  takeoff_timing_offset: 15/100 jumps (15%)
-  takeoff_peak_velocity: 15/100 jumps (15%)
+  telemark_scissor_mean: 15/100 jumps (15%)
+  avg_v_style_front: 15/100 jumps (15%)
   explosive_efficiency: 15/100 jumps (15%)
-  avg_v_style_front: 12/100 jumps (12%)
-  telemark_scissor_mean: 10/100 jumps (10%)
-  takeoff_knee_angle: 8/100 jumps (8%)
-  avg_v_style_back: 3/100 jumps (3%)
+  avg_v_style_back: 6/100 jumps (6%)
 
 
 TOTAL FEATURES USED: 17
