@@ -1,9 +1,14 @@
+<table><tr><td>
+
 # Ski Jump Pose Estimation 🎿
 
 > From keypoint annotation to biomechanical metrics and score correlation — building a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
 
+</td><td>
 
-<img width="517" height="537" alt="skeleton" src="https://github.com/user-attachments/assets/dd336d0f-baa0-465f-98ce-3f10ff7773e0" />
+<img width="220" alt="skeleton" src="https://github.com/user-attachments/assets/dd336d0f-baa0-465f-98ce-3f10ff7773e0" />
+
+</td></tr></table>
 
 ---
 
@@ -19,14 +24,13 @@ The main objectives are:
 
 ### Future Applications
 
-| # | Application |
-|---|-------------|
-| 01 | **Fan Engagement Enhancement** — Real-time jump analysis for broadcasts, providing viewers with instant visual feedback on jump technique and performance metrics |
-| 02 | **Coaching Tool** — Detailed biomechanical feedback for athletes and coaching staff, enabling frame-by-frame technique comparison and improvement tracking |
+**Fan Engagement Enhancement** — Real-time jump analysis for broadcasts, providing viewers with instant visual feedback on jump technique and performance metrics.
+
+**Coaching Tool** — Detailed biomechanical feedback for athletes and coaching staff, enabling frame-by-frame technique comparison and improvement tracking.
 
 ---
 
-## 🏔️ Milestone 1 — Dataset Annotation
+## Objective 1 — Dataset Annotation
 
 ### Overview
 
@@ -35,19 +39,6 @@ We annotated **32 ski jumps** from the [Ski-TB Dataset](https://cvlab.epfl.ch/re
 <!-- 📸 Add skeleton diagram + Roboflow logo here -->
 <!-- ![23-Keypoint Skeleton](docs/images/skeleton_model.png) -->
 <!-- ![Roboflow Logo](docs/images/roboflow_logo.png) -->
-
-### 23-Keypoint Skeleton
-
-| Body Part | Keypoints |
-|-----------|-----------|
-| **Head & Neck** | 1-Head, 2-Neck |
-| **Right Arm** | 3-R_Shoulder, 4-R_Elbow, 5-R_Wrist |
-| **Left Arm** | 6-L_Shoulder, 7-L_Elbow, 8-L_Wrist |
-| **Torso** | 9-Center_Pelvis |
-| **Left Leg** | 10-L_Hip, 11-L_Knee, 12-L_Ankle, 13-L_Foot |
-| **Left Ski** | 14-L_Ski_Binding, 15-L_Ski_Tail, 16-L_Ski_Tip |
-| **Right Leg** | 17-R_Hip, 18-R_Knee, 19-R_Ankle, 20-R_Foot |
-| **Right Ski** | 21-R_Ski_Binding, 22-R_Ski_Tail, 23-R_Ski_Tip |
 
 ### Annotation Pipeline
 
@@ -59,7 +50,7 @@ Each jump video contains approximately **350 frames**. Out of these, around **60
 4. **Normalize** — normalize keypoint coordinates relative to the bounding box, making them resolution- and position-independent for downstream metric computation.
 5. **Visualize** — generate annotated images and overlay videos for quality inspection.
 
-### Folder Structure
+### Folder Structure & Output
 
 ```
 annotation_preprocessing/
@@ -72,21 +63,20 @@ annotation_preprocessing/
     └── visualizer.py              # Generate annotated images and videos
 ```
 
-### Output — Dataset Folder
+The annotation pipeline outputs data into the `dataset/` folder:
 
-The annotation pipeline outputs data into the `dataset/` folder, organized as follows:
-
-| Path | Description |
-|------|-------------|
-| `frames/JP00XX/` | Raw video frames organized by jump ID |
-| `annotations/JP00XX/` | Processed COCO annotations + visualization overlays |
-| `keypoints_dataset.csv` | Normalized keypoints for all frames, ready for metrics computation |
-| `jump_phases_SkiTB.csv` | Frame ranges for each jump phase (take-off, v-style, flight, landing, telemark) |
-| `JP_data.csv` | Athlete metadata: name, nationality, scores, judges' evaluations, hill info |
+```
+dataset/
+├── frames/JP00XX/                 # Raw video frames organized by jump ID
+├── annotations/JP00XX/            # Processed COCO annotations + visualization overlays
+├── keypoints_dataset.csv          # Normalized keypoints for all frames, ready for metrics computation
+├── jump_phases_SkiTB.csv          # Frame ranges for each jump phase (take-off, v-style, flight, landing, telemark)
+└── JP_data.csv                    # Athlete metadata: name, nationality, scores, judges' evaluations, hill info
+```
 
 ---
 
-## 📐 Milestone 2 — Biomechanical Metrics
+## 📐 Objective 2 — Biomechanical Metrics
 
 ### Overview
 
@@ -136,19 +126,13 @@ We are aware that some of the results obtained from the metrics and correlation 
 
 ---
 
-## 🤖 Milestone 3 — Ski Pose Estimation Model
+## 🤖 Objective 3 — Ski Pose Estimation Model
 
 ### Overview
 
 The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [this paper](https://github.com/kaulquappe23/ski-pose-prediction). Its goal is to **predict the position of the 6 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
 
-We adapted the model to our custom 23-keypoint dataset and trained it on the following data split:
-
-| Split | Samples |
-|-------|---------|
-| Train | 7,729 |
-| Val | 1,656 |
-| Test | 1,657 |
+We adapted the model to our custom 23-keypoint dataset and trained it on a total of 11,042 samples (7,729 train, 1,656 validation, 1,657 test).
 
 ### Folder Structure
 
