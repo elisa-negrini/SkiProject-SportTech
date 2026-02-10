@@ -1,6 +1,31 @@
-# Ski Jump Analysis Project 🎿
+# Ski Jump Pose Estimation 🎿
 
-A comprehensive pipeline for ski jump video analysis using pose estimation and keypoint interpolation.
+> From keypoint annotation to metrics and score correlation: developing a new dataset for ski pose estimation and performance analysis.
+
+<!-- 📸 SUGGESTED: Add a hero image or GIF of an annotated ski jump here -->
+<!-- ![Annotated Jump Example](docs/images/hero_demo.gif) -->
+
+---
+
+## 📖 Project Description
+
+This project presents a comprehensive system for **2D metrics extraction from ski jumper skeletons (+skis)**, designed to analyze ski jumping performance through computer vision and biomechanical analysis.
+
+### Key Features
+
+- **Custom 23-Keypoint Skeleton**: Body joints + ski keypoints for complete pose representation
+- **Bio-mechanical Metrics**: Joint angles, body alignment, skeletal positioning analysis
+- **Ski Jump-Specific Metrics**: V-style angle, body-ski inclination, telemark evaluation
+- **Jump Performance Analysis**: Comprehensive scoring and style penalty prediction
+- **Deep Learning Model**: Transformer-based ski reconstruction from body pose (SkiPoseModel)
+- **Interactive Dashboard**: Streamlit-based visualization and exploration tool
+
+### Future Applications
+
+| # | Application |
+|---|-------------|
+| 01 | **Fan Engagement Enhancement** - Real-time jump analysis for broadcasts |
+| 02 | **Coaching Tool** - Detailed biomechanical feedback for athletes |
 
 ---
 
@@ -9,162 +34,316 @@ A comprehensive pipeline for ski jump video analysis using pose estimation and k
 ```
 SkiProject-SportTech/
 │
+├── 📄 README.md                           # This file
 ├── 📄 requirements.txt                    # Python dependencies
 ├── 📄 .gitignore                          # Git ignore rules
 │
-├── 📂 dataset/
-│   ├── 📂 frames/                         # Video frames organized by jump
-│   │   ├── 📂 JP0006/                     # these are all the frames, not filtered
-│   │   ├── 📂 JP0007/
-│   │   └── 📂 JP00XX/
-│   │
-│   └── 📂 annotations/                    # Processed annotations & visualizations
-│       └── 📂 JP00XX/
-│           ├── 📂 train/
-│           │   ├── 📄 annotations_jumpX.json                    # Filtered annotations
-│           │   └── 📄 annotations_interpolated_jumpX.coco.json  # Interpolated annotations
-│           │
-│           └── 📂 visualizations/         # Output visualizations
-│               ├── 📄 frame_XXXXX.jpg 
-│               └── 📄 ...
-│               └── 📄 output_video_JP00XX.mp4   # 'Final' video
+├── 📂 annotation_preprocessing/           # Annotation pipeline from Roboflow
+│   ├── main.py                            # Master workflow orchestrator
+│   └── utils/                             # Processing utilities
 │
-├── 📂 raw_annotations/                    # Downloaded Roboflow annotations
-│   └── 📂 train/
-│       └── 📄 _annotations.coco.json      # Full COCO annotations from Roboflow (all jumps mixed togethere)
+├── 📂 dashboard/                          # Streamlit interactive dashboard
+│   ├── Dashboard.py                       # Main dashboard entry point
+│   └── pages/                             # Dashboard pages (Gallery, Metrics)
 │
-├── 📂 utils/              
-│   ├── 📄 __init__.py                     # Creates annotated frame images
-│   ├── 📄 annotations_manager.py          # Extracts jump-specific annotations
-│   ├── 📄 box_filter.py                   # Extraxt and filter boxes annotations
-│   ├── 📄 interpolator.py                 # Keypoint interpolation between frames
-│   └── 📄 visualizer.py                   # Generates annotated frame images and video
+├── 📂 dataset/                            # Main dataset folder
+│   ├── frames/                            # Video frames (JP0001-JP0045)
+│   ├── annotations/                       # Processed COCO annotations
+│   ├── keypoints_dataset.csv              # Normalized keypoints dataset
+│   ├── jump_phases_SkiTB.csv              # Jump phase annotations
+│   └── JP_data.csv                        # Athlete & jump metadata
 │
-└── 📄 main.py                             # Master workflow orchestrator
-├── 📂 utils/
-│    ├── 📄 datamodule.py           # Dataset Loader
-│    ├── 📄 domainadapt_flags.py    # Config Settings
-│    ├── 📄 main.py                 # Training Entry
-│    ├── 📄 model.py                # Adaptation Network
-│    ├── 📄 preprocess.py           # Data Preparation
-│    ├── 📄 transformer.py          # Transformer Blocks
-│    └── 📄 utils.py                # Helper Functions
+├── 📂 metrics/                            # Metrics computation & analysis
+│   ├── core_metrics/                      # Geometric metrics per frame/jump
+│   ├── timeseries_analysis/               # Temporal patterns & clustering
+│   ├── correlations/                      # Score correlation analysis
+│   ├── style_penalty_model/               # ML models for style prediction
+│   └── visualizations/                    # Generated plots and charts
+│
+└── 📂 SkiPoseModel/                       # Deep learning ski reconstruction
+    ├── main.py                            # Training/inference entry point
+    ├── model.py                           # Transformer-based network
+    └── datamodule.py                      # Data loading utilities
 ```
 
 ---
 
-## 📋 File Descriptions
+## 💾 Dataset & Model Checkpoints Download
 
-### Core Processing Scripts
+### Dataset Description
 
-| File | Purpose |
-|------|---------|
-| **filter_frames.py** | Filters video frames based on predefined conditions: 1 frame out of 10 + frames close to camera switch|
-| **add_frames_interactive.py** | Interactive tool to manually add important frames at critical jump phases |
-| **extract_annotations.py** | Extracts annotations for a specific jump from the main COCO file using tags (it is the only way to filter the annotations for different jumps, as the same option on roboflow is not free) |
-| **interpolation.py** | Performs linear interpolation of keypoints between annotated frames adjusting the skeleton to the bounding boxes annotations that are present in the SkiTB dataset|
-| **main_annotation.py** | Main workflow orchestrator that runs all processing steps sequentially |
+Our dataset is built upon the **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)** with custom **23-keypoint skeleton annotations**:
 
-### Visualization Scripts
+| Component | Description |
+|-----------|-------------|
+| **Jumps** | 45 professional ski jumps (JP0001 - JP0045) |
+| **Athletes** | International FIS World Cup competitors (Men & Women) |
+| **Keypoints** | 23 points: 17 body joints + 6 ski points |
+| **Annotations** | COCO-format keypoint annotations with interpolation |
+| **Phases** | Take-off, V-style, Flight, Landing, Telemark |
+| **Metadata** | Athlete info, scores, judges' evaluations, hill data |
 
-| File | Purpose |
-|------|---------|
-| **visualize_interpolation.py** | Creates annotated images with skeleton overlay and bounding boxes |
-| **create_video.py** | Generates MP4 video from annotated frames using OpenCV |
+### 23-Keypoint Skeleton Model
+
+<!-- 📸 SUGGESTED: Add skeleton diagram image here -->
+<!-- ![23-Keypoint Skeleton](docs/images/skeleton_model.png) -->
+
+| Body Part | Keypoints |
+|-----------|-----------|
+| **Head & Neck** | 1-Head, 2-Neck |
+| **Right Arm** | 3-R_Shoulder, 4-R_Elbow, 5-R_Wrist |
+| **Left Arm** | 6-L_Shoulder, 7-L_Elbow, 8-L_Wrist |
+| **Torso** | 9-Center_Pelvis |
+| **Right Leg** | 17-R_Hip, 18-R_Knee, 19-R_Ankle, 20-R_Foot |
+| **Left Leg** | 10-L_Hip, 11-L_Knee, 12-L_Ankle, 13-L_Foot |
+| **Right Ski** | 21-R_Ski_Binding, 22-R_Ski_Tail, 23-R_Ski_Tip |
+| **Left Ski** | 14-L_Ski_Binding, 15-L_Ski_Tail, 16-L_Ski_Tip |
+
+### Download Links
+
+> ⚠️ **Note**: The dataset and model checkpoints are not included in the repository due to size constraints.
+
+| Resource | Link | Size | Description |
+|----------|------|------|-------------|
+| **Full Dataset** | LINK DI GOOGLE DRIVE QUI | ~X GB | Frames, annotations, metadata |
+| **Model Checkpoints** | LINK DI GOOGLE DRIVE QUI | ~X MB | Pre-trained SkiPoseModel weights |
+
+**After downloading, place files as follows:**
+```
+SkiProject-SportTech/
+├── dataset/
+│   ├── frames/           ← Extract frames here
+│   ├── annotations/      ← Extract annotations here
+│   └── *.csv             ← Place CSV files here
+│
+└── SkiPoseModel/
+    └── checkpoints/      ← Place model checkpoints here
+```
 
 ---
 
-## 🚀 Usage Guide
+## 🚀 Installation & Setup
 
-### 1. Installation
+### Prerequisites
+
+- **Python**: 3.9+
+- **GPU** (optional): NVIDIA GPU with CUDA 11.8+ for SkiPoseModel training
+
+### Installation Steps
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# 1. Clone the repository
+git clone https://github.com/YOUR_USERNAME/SkiProject-SportTech.git
 cd SkiProject-SportTech
 
-# Create virtual environment (optional but recommended)
+# 2. Create virtual environment
 python -m venv sport_tech_env
-source sport_tech_env/bin/activate  # On Windows: sport_tech_env\Scripts\activate
 
-# Install dependencies
+# Windows
+sport_tech_env\Scripts\activate
+
+# Linux/Mac
+source sport_tech_env/bin/activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Download dataset and checkpoints (see links above)
+# 5. Verify setup
+python -c "import torch; print('PyTorch:', torch.__version__)"
 ```
 
-### 2. Data Processing Workflow
+---
 
-#### **Step 1: Filter Initial Frames**
+## ▶️ How to Run the Project
+
+### Quick Start Commands
+
+| Task | Command |
+|------|---------|
+| **Run Dashboard** | `streamlit run dashboard/Dashboard.py` |
+| **Process Annotations** | `python annotation_preprocessing/main.py` |
+| **Compute Metrics** | `python metrics/core_metrics/metrics_computation.py` |
+| **Train SkiPoseModel** | `python SkiPoseModel/main.py --mode train` |
+| **Inference SkiPoseModel** | `python SkiPoseModel/main.py --mode test` |
+
+### Full Pipeline Workflow
+
 ```bash
-python filter_frames.py
-```
-- Automatically filters video frames based on predefined criteria
-- Reduces dataset size while preserving important motion sequences
-- Output: Filtered frames in a local folder out of the repo (da sistemare)
+# Step 1: Process raw annotations (filtering, interpolation, normalization)
+python annotation_preprocessing/main.py
 
-#### **Step 2: Add Critical Frames Manually**
+# Step 2: Compute biomechanical metrics
+python metrics/core_metrics/metrics_computation.py
+
+# Step 3: Explore results in dashboard
+streamlit run dashboard/Dashboard.py
+
+# Step 4 (Optional): Train ski reconstruction model
+cd SkiPoseModel
+python main.py --mode train
+```
+
+---
+
+## 📂 Folder Descriptions
+
+### `annotation_preprocessing/`
+
+Pipeline for processing raw annotations from Roboflow to interpolated, normalized keypoints.
+
+| File | Purpose |
+|------|---------|
+| `main.py` | Interactive workflow orchestrator |
+| `utils/annotation_manager.py` | Extract jump-specific annotations from COCO file |
+| `utils/box_filter.py` | Filter and validate bounding boxes |
+| `utils/interpolator.py` | Linear interpolation between annotated frames |
+| `utils/normalizer.py` | Normalize keypoints to bounding box coordinates |
+| `utils/visualizer.py` | Generate annotated images and videos |
+
+**Workflow:**
+1. Extract annotations by jump tag
+2. Filter bounding boxes
+3. Interpolate keypoints between frames
+4. Normalize to consistent coordinate system
+5. Generate visualization videos
+
+<!-- 📸 SUGGESTED: Add annotated jump GIF here -->
+<!-- ![Annotation Pipeline Output](docs/images/annotation_demo.gif) -->
+
+---
+
+### `dataset/`
+
+Main data storage containing frames, annotations, and metadata.
+
+| File/Folder | Description |
+|-------------|-------------|
+| `frames/JP00XX/` | Raw video frames organized by jump ID |
+| `annotations/JP00XX/` | Processed COCO annotations + visualizations |
+| `keypoints_dataset.csv` | Normalized keypoints ready for metrics computation |
+| `jump_phases_SkiTB.csv` | Frame ranges for each jump phase (take-off, v-style, flight, landing, telemark) |
+| `JP_data.csv` | Athlete metadata: name, nationality, scores, judges' evaluations, hill info |
+
+**Dataset Statistics:**
+- 45 competition jumps
+- ~30 FPS video extraction
+- Mixed hill types: Normal (K90), Large (K120), Flying (K200)
+
+---
+
+### `dashboard/`
+
+Interactive Streamlit application for data exploration and analysis.
+
+| Page | Description |
+|------|-------------|
+| **Dashboard.py** | Home page with project overview |
+| **Gallery Explorer** | Browse frames with skeleton overlay, filter by jump/phase |
+| **Metric Analysis** | Interactive charts for biomechanical metrics comparison |
+
+**Run Dashboard:**
 ```bash
-python add_frames_interactive.py
+streamlit run dashboard/Dashboard.py
 ```
-- Manually review and add frames at critical moments: example when the skier is very close to the camera and moves very fast
-- This ensures key poses are not missed by automatic filtering
 
-#### **Step 3: Upload to Roboflow**
-1. Upload filtered frames on the Roboflow project [Roboflow](https://roboflow.com/)
-2. Each jump should be uploaded in one job
+<!-- 📸 SUGGESTED: Add dashboard screenshot here -->
+<!-- ![Dashboard Screenshot](docs/images/dashboard_preview.png) -->
 
-#### **Step 4: Annotate the Jump**
-1. In Roboflow, annotate all keypoints for the specific jump (e.g., Jump 9)
-2. Use the 23-keypoint skeleton model:
-   - Head, neck, shoulders, elbows, wrists
-   - Torso, hips, knees, ankles, feet
-   - Skis
+---
 
-#### **Step 5: Tag the Dataset**
-1. In Roboflow, select the job for the specific jump
-2. Add tag: `jumpX` (e.g., `jump9` for Jump 9)
-3. This allows filtering annotations by jump number later
+### `metrics/`
 
-#### **Step 6: Download Annotations**
-1. Export dataset from Roboflow in **COCO Keypoint** format
-2. Download the ZIP file
-3. **Clear** the `raw_annotations/` folder (remove old data)
-4. Extract the downloaded files into `raw_annotations/`
-5. Verify structure: `raw_annotations/train/_annotations.coco.json` exists
+Comprehensive biomechanical metrics computation and analysis.
 
-#### **Step 7: Run Main Workflow**
+| Subfolder | Content |
+|-----------|---------|
+| `core_metrics/` | Per-frame geometric metrics (angles, positions) |
+| `timeseries_analysis/` | Temporal dynamics (velocity, stability, jitter) |
+| `correlations/` | Statistical correlation with judges' scores |
+| `style_penalty_model/` | ML models predicting style penalties |
+| `visualizations/` | Generated charts and plots |
+
+**Key Metrics Computed:**
+
+| Category | Metrics |
+|----------|---------|
+| **V-Style** | Ski opening angle (front/back view) |
+| **Body-Ski** | Inclination angle during flight |
+| **Take-off** | Knee angle, extension velocity |
+| **Flight** | Stability (std), jitter, smoothness |
+| **Landing** | Hip velocity, knee compression, telemark offset |
+
+---
+
+### `SkiPoseModel/`
+
+Deep learning model for ski position reconstruction from body pose.
+
+**Architecture:** Transformer-based network (PyTorch Lightning)
+
+**Task:** Given body keypoints (with skis masked), predict complete skeleton including ski positions.
+
+| File | Purpose |
+|------|---------|
+| `main.py` | Training/testing/demo entry point |
+| `model.py` | AdaptationNetwork (Lightning module) |
+| `datamodule.py` | Dataset loading and preprocessing |
+| `transformer.py` | Transformer architecture blocks |
+| `preprocess.py` | COCO JSON → pickle conversion |
+| `postprocess_visualize.py` | Visualization utilities |
+
+**Training:**
 ```bash
-python main_annotation.py
+cd SkiPoseModel
+python preprocess.py  # Prepare data
+python main.py --mode train
 ```
 
-**Interactive Prompts:**
-1. **Enter Jump Number**: Type the jump number (e.g., `9`)
-2. **Interpolate frames?** (y/n): 
-   - `y`: Performs keypoint interpolation between annotated frames
-   - `n`: Skips interpolation (uses only original annotations)
-3. **Visualize and create video?** (y/n):
-   - `y`: Creates annotated images and video
-   - `n`: Skips visualization
-4. **Analyze another jump?** (y/n):
-   - `y`: Repeats workflow for different jump
-   - `n`: Exits program
-
-**Output:**
-- Filtered annotations: `dataset/annotations/JP00XX/train/annotations_jumpX.json`
-- Interpolated annotations: `dataset/annotations/JP00XX/train/annotations_interpolated_jumpX.coco.json`
-- Visualizations: `dataset/annotations/JP00XX/visualizations/` frames + video
 ---
 
 ## 🎨 Visualization Features
 
 ### Skeleton Color Coding
-- **Cyan**: Head and neck
-- **Light Blue**: Right arm
-- **Orange**: Left arm
-- **Black**: Torso center points
-- **Yellow**: Left leg
-- **Purple**: Right leg
-- **Pink**: Skis
 
-### Keypoint Numbering
-Each keypoint is labeled with its number (1-23) in fluorescent yellow-green for easy identification.
+| Body Part | Color |
+|-----------|-------|
+| Head & Neck | Cyan |
+| Right Arm | Light Blue |
+| Left Arm | Orange |
+| Torso | Black |
+| Left Leg | Yellow |
+| Right Leg | Purple |
+| Skis | Pink |
+
+Each keypoint is labeled with its number (1-23) for easy identification.
+
+---
+
+## 👥 Team
+
+| Name | Email | ID |
+|------|-------|-----|
+| Diego Conti | diego.conti@studenti.unitn.it | 257632 |
+| Elisa Negrini | elisa.negrini@studenti.unitn.it | 258422 |
+| Federico Molteni | federico.molteni@studenti.unitn.it | 243030 |
+
+---
+
+## 📜 License
+
+*To be defined*
+
+---
+
+## 🙏 Acknowledgments
+
+- **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)** - Base dataset for ski jumping videos
+- **[Roboflow](https://roboflow.com/)** - Annotation platform
+- **[PyTorch Lightning](https://lightning.ai/)** - Deep learning framework
+- **[Streamlit](https://streamlit.io/)** - Dashboard framework
+
+---
+
+**Sport Tech 2025/2026** - University of Trento
 
