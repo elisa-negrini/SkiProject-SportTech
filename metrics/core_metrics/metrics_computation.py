@@ -15,7 +15,7 @@ class MetricsComputation:
                  phases_file: str = 'dataset/jump_phases_SkiTB.csv'):
         """Initialize the calculator with paths and constants."""
         
-        self.base_path = Path(__file__).parent.parent
+        self.base_path = Path(__file__).parent.parent.parent
         self.keypoints_file = self.base_path / keypoints_file
         self.phases_file = self.base_path / phases_file
         

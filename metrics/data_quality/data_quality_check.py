@@ -57,8 +57,8 @@ class DataQualityChecker:
     
     def __init__(self):
         """Initialize paths and configuration."""
-        self.base_path = Path(__file__).parent.parent
-        self.metrics_path = Path(__file__).parent
+        self.base_path = Path(__file__).parent.parent.parent
+        self.metrics_path = self.base_path / 'metrics'
         
         self.metrics_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
         

@@ -73,11 +73,11 @@ class StylePenaltyModel:
     
     def __init__(self):
         """Initialize paths and configurations."""
-        self.base_path = Path(__file__).parent.parent
-        self.metrics_path = Path(__file__).parent
+        self.base_path = Path(__file__).parent.parent.parent
+        self.metrics_path = self.base_path / 'metrics'
         
         # Output directory
-        self.output_dir = self.metrics_path / 'models'
+        self.output_dir = self.metrics_path / 'style_penalty_model'
         self.output_dir.mkdir(exist_ok=True)
         
         # Model storage

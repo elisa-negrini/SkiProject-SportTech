@@ -34,7 +34,7 @@ class CorrelationVisualizer:
     """
     
     def __init__(self):
-        self.base_path = Path(__file__).parent.parent
+        self.base_path = Path(__file__).parent.parent.parent
         self.corr_file = self.base_path / 'metrics' / 'correlations' / 'correlations.csv'
         self.merged_file = self.base_path / 'metrics' / 'correlations' / 'merged_scores_metrics.csv'
         self.output_dir = self.base_path / 'metrics' / 'visualizations' / 'correlations'

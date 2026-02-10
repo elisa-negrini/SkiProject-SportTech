@@ -39,7 +39,7 @@ class CorrelationAnalyzer:
     
     def __init__(self):
         # --- PATHS ---
-        self.base_path = Path(__file__).parent.parent
+        self.base_path = Path(__file__).parent.parent.parent
         self.jp_data_file = self.base_path / 'dataset' / 'JP_data.csv'
         
         # Input metrics (from subfolders)
