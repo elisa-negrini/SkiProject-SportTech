@@ -2,8 +2,8 @@
 
 > From keypoint annotation to biomechanical metrics and score correlation — building a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
 
-<!-- 📸 Add a hero image or GIF of an annotated ski jump here -->
-<!-- ![Annotated Jump Example](docs/images/hero_demo.gif) -->
+
+<img width="517" height="537" alt="skeleton" src="https://github.com/user-attachments/assets/dd336d0f-baa0-465f-98ce-3f10ff7773e0" />
 
 ---
 
