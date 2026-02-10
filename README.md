@@ -10,9 +10,6 @@
 
 </td></tr></table>
 
----
-
-## 📖 Project Overview
 
 This project develops an end-to-end system for **2D metrics extraction from ski jumper skeletons (+ skis)**, starting from raw competition footage from the [Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/).
 
@@ -30,15 +27,19 @@ The main objectives are:
 
 ---
 
-## Objective 1 — Dataset Annotation
 
-### Overview
+
+## Objective 1 — Dataset Annotation &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ![roboflow](https://github.com/user-attachments/assets/cce73566-6d18-4dfe-ada0-f013f580c3bc)
+
+
 
 We annotated **32 ski jumps** from the [Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/) using a custom **23-keypoint skeleton model** (17 body joints + 6 ski keypoints). All annotations were created with **[Roboflow](https://roboflow.com/)**.
 
 <!-- 📸 Add skeleton diagram + Roboflow logo here -->
 <!-- ![23-Keypoint Skeleton](docs/images/skeleton_model.png) -->
 <!-- ![Roboflow Logo](docs/images/roboflow_logo.png) -->
+
+
 
 ### Annotation Pipeline
 
@@ -76,9 +77,8 @@ dataset/
 
 ---
 
-## 📐 Objective 2 — Biomechanical Metrics
+##  Objective 2 — Biomechanical Metrics
 
-### Overview
 
 Starting from the annotated and normalized keypoints, we computed a set of **2D biomechanical metrics** to quantitatively describe each jump. These metrics account for the inherent limitations of a 2D perspective (e.g., foreshortening, camera angle variability) by favoring dynamic measures (velocities, standard deviations) over static absolute angles where possible.
 
@@ -112,10 +112,20 @@ metrics/
 
 ### Metric Visualizations
 
-<!-- 📸 Add metric visualization images here, one for each -->
-<!-- ![V-Style Front Angle](docs/images/v_style_front.png) -->
-<!-- ![V-Style Back Angle](docs/images/v_style_back.png) -->
-<!-- ![Body-Ski Angle](docs/images/body_ski_angle.png) -->
+<table border="0">
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/3745bbe6-a11f-42e0-a7d5-743ccaa7030f" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/979ac743-5b81-496f-addb-45aa4e77a31b" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/d5df2001-f4b6-431c-bb9f-784d43e4ef5d" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Take Off knee angle</b></td>
+    <td align="center"><b>Body Ski Angle</b></td>
+    <td align="center"><b>V style Angle</b></td>
+    <td align="center"><b>Symmetry Index</b></td>
+  </tr>
+</table>
 
 ### ⚠️ Disclaimer on Results
 
@@ -126,11 +136,10 @@ We are aware that some of the results obtained from the metrics and correlation 
 
 ---
 
-## 🤖 Objective 3 — Ski Pose Estimation Model
+##  Objective 3 — Ski Pose Estimation Model
 
-### Overview
 
-The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [this paper](https://github.com/kaulquappe23/ski-pose-prediction). Its goal is to **predict the position of the 6 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
+The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [this paper](https://github.com/kaulquappe23/ski-pose-prediction). Its goal is to **predict the position of the 8 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
 
 We adapted the model to our custom 23-keypoint dataset and trained it on a total of 11,042 samples (7,729 train, 1,656 validation, 1,657 test).
 
@@ -156,14 +165,22 @@ SkiPoseModel/
 
 ### Prediction & Post-Processing
 
-The model predicts the 6 ski keypoints (3 per ski: binding, tail, tip). After inference, a **PCA-based linearization** step is applied to force the predicted ski points onto a straight line, producing more physically plausible results.
+The model predicts the 6 ski keypoints (4 per ski). After inference, a **PCA-based linearization** step is applied to force the predicted ski points onto a straight line, producing more physically plausible results. Here are some visualizations of the results.
+<table border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/fdbc37a1-48df-4754-ac4a-919e245e46ae" width="100%" alt="test_0005"></td>
+    <td><img src="https://github.com/user-attachments/assets/dfa237a2-e2e8-4446-bc5e-a9a290fe165f" width="100%" alt="test_0068"></td>
+    <td><img src="https://github.com/user-attachments/assets/9541719f-b34d-4d69-8ffc-5103d63c8f66" width="100%" alt="test_0093"></td>
+    <td><img src="https://github.com/user-attachments/assets/9c0caa91-4dfe-49d5-80ae-685d5417a9aa" width="100%" alt="test_0037"></td>
+  </tr>
+ 
+</table>
 
-<!-- 📸 Add 4-5 side-by-side images of GT skeleton vs. predicted skeleton here -->
-<!-- ![Prediction Examples](docs/images/skiposemodel_predictions.png) -->
+
 
 ---
 
-## 🚀 Installation & Setup
+##  Installation & Setup
 
 ### Prerequisites
 
