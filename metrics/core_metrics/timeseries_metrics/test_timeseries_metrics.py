@@ -1,15 +1,3 @@
-"""
-TEST: Time-Series Metrics for Ski Jumping Analysis
-===================================================
-Computes "perspective-robust" metrics that focus on TEMPORAL DYNAMICS
-rather than absolute angles (which are distorted by diagonal camera view).
-
-Metrics computed:
-1. Knee Velocity (Explosiveness): Peak angular velocity at take-off
-2. Flight Frozenness: Stability (std) of body-ski angle during flight
-3. Landing Smoothness: Hip descent rate after landing
-"""
-
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -20,31 +8,24 @@ warnings.filterwarnings('ignore')
 
 
 class TimeSeriesMetricsCalculator:
-    """
-    Calculates time-series based metrics that are robust to perspective distortion.
-    Focus on DERIVATIVES and VARIABILITY rather than absolute values.
-    """
-    
+
     def __init__(self):
-        # --- PATHS ---
-        self.base_path = Path(__file__).parent.parent
-        self.keypoints_file = self.base_path / 'keypoints_dataset.csv'
-        self.phases_file = self.base_path / 'jump_phases_SkiTB.csv'
-        self.jp_data_file = self.base_path / 'JP_data.csv'
+        self.base_path = Path(__file__).parent.parent.parent.parent
+        self.keypoints_file = self.base_path / 'dataset'/ 'keypoints_dataset.csv'
+        self.phases_file = self.base_path / 'dataset'/ 'jump_phases_SkiTB.csv'
+        self.jp_data_file = self.base_path / 'dataset'/ 'JP_data.csv'
         
-        # Output (in subfolder)
-        self.output_dir = self.base_path / 'metrics' / 'timeseries_metrics'
+        # Output 
+        self.output_dir = self.base_path / 'metrics' / 'core_metrics' / 'timeseries_metrics'
         self.output_per_frame = self.output_dir / 'timeseries_per_frame.csv'
-        self.output_summary = self.output_dir / 'timeseries_summary.csv'
+        self.output_summary = self.output_dir / 'additional_timeseries_metrics.csv'
         
-        # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Frame rate (30 fps)
         self.fps = 30
         self.dt = 1.0 / self.fps  # seconds per frame
         
-        # Keypoint mapping (same as original MetricsCalculator)
         self.kpt_map = {
             'head': '1',
             'neck': '2',
@@ -57,7 +38,6 @@ class TimeSeriesMetricsCalculator:
             'l_ski_tip': '16',  'l_ski_tail': '15'
         }
         
-        # Smoothing parameters for derivatives
         self.smooth_window = 5  # frames for Savitzky-Golay filter
         self.smooth_poly = 2
         
@@ -85,10 +65,8 @@ class TimeSeriesMetricsCalculator:
         self.df_kpts['jump_id'] = self.df_kpts['jump_id'].apply(self._normalize_jid)
         
         # Parse frame numbers from filenames
-        # Handles formats like: "00324.jpg", "00177_jpg.rf.xxx", etc.
         def extract_frame_num(fname):
             import re
-            # Try to extract leading digits
             match = re.match(r'^(\d+)', str(fname))
             if match:
                 return int(match.group(1))
@@ -96,10 +74,9 @@ class TimeSeriesMetricsCalculator:
         
         self.df_kpts['frame_idx'] = self.df_kpts['frame_name'].apply(extract_frame_num)
         
-        # Remove duplicates (keep first occurrence)
         self.df_kpts = self.df_kpts.drop_duplicates(subset=['jump_id', 'frame_idx'], keep='first')
         
-        print(f"✅ Loaded: {len(self.df_kpts)} keypoint frames, {len(self.df_phases)} jump phases")
+        print(f" Loaded: {len(self.df_kpts)} keypoint frames, {len(self.df_phases)} jump phases")
         return True
     
     def _normalize_jid(self, val) -> str:
@@ -152,21 +129,11 @@ class TimeSeriesMetricsCalculator:
         cos_angle = np.clip(np.dot(v1, v2) / (norm1 * norm2), -1.0, 1.0)
         return np.degrees(np.arccos(cos_angle))
     
-    # =========================================================================
     # METRIC 1: KNEE VELOCITY (Explosiveness at Take-off)
-    # =========================================================================
-    
     def compute_knee_angle_series(self, jump_df: pd.DataFrame, side: str = 'r') -> pd.Series:
         """
         Compute knee angle for each frame.
         Knee angle = angle at knee between hip-knee-ankle.
-        
-        Args:
-            jump_df: DataFrame with keypoints for a single jump
-            side: 'r' for right, 'l' for left
-        
-        Returns:
-            Series with knee angles indexed by frame_idx
         """
         angles = {}
         
@@ -189,20 +156,10 @@ class TimeSeriesMetricsCalculator:
                                window: int = 5) -> Dict:
         """
         Compute angular velocity of knee extension around take-off.
-        
-        Args:
-            knee_angles: Series of knee angles by frame
-            takeoff_frame: Frame index of take-off
-            window: Frames before/after take-off to analyze
-        
-        Returns:
-            Dict with peak velocity, mean velocity, etc.
         """
-        # Get window around take-off
         start_frame = takeoff_frame - window
         end_frame = takeoff_frame + window
         
-        # Filter to window
         mask = (knee_angles.index >= start_frame) & (knee_angles.index <= end_frame)
         window_angles = knee_angles[mask].dropna()
         
@@ -212,13 +169,10 @@ class TimeSeriesMetricsCalculator:
                 'knee_angle_at_takeoff': np.nan
             }
         
-        # Compute derivative (angular velocity in deg/frame)
         angles_array = window_angles.values
         frames_array = window_angles.index.values
         
-        # Numerical derivative
         if len(angles_array) >= self.smooth_window:
-            # Smooth first, then differentiate
             try:
                 smoothed = savgol_filter(angles_array, self.smooth_window, self.smooth_poly)
                 velocity = np.gradient(smoothed)
@@ -227,37 +181,26 @@ class TimeSeriesMetricsCalculator:
         else:
             velocity = np.gradient(angles_array)
         
-        # Convert to deg/second
         velocity_per_sec = velocity * self.fps
         
-        # Peak velocity (positive = extension)
         peak_velocity = np.nanmax(velocity_per_sec)
         
-        # Angle at take-off
         takeoff_angle = np.nan
         if takeoff_frame in window_angles.index:
             takeoff_angle = window_angles[takeoff_frame]
         
-        # REMOVED: knee_mean_velocity (redundant with peak)
-        # REMOVED: knee_extension_range (correlated with peak velocity)
         
         return {
             'knee_peak_velocity': peak_velocity,
             'knee_angle_at_takeoff': takeoff_angle
         }
     
-    # =========================================================================
-    # METRIC 2: FLIGHT FROZENNESS (Stability during flight)
-    # =========================================================================
-    
+    # METRIC 2: FLIGHT FROZENNESS (Stability during flight)   
     def compute_body_ski_angle_series(self, jump_df: pd.DataFrame) -> pd.Series:
         """
         Compute body-ski angle for each frame.
         Body axis: neck -> center_pelvis
         Ski axis: avg of left and right ski vectors
-        
-        Returns:
-            Series with BSA indexed by frame_idx
         """
         angles = {}
         
@@ -276,10 +219,8 @@ class TimeSeriesMetricsCalculator:
                 angles[frame_idx] = np.nan
                 continue
             
-            # Body vector (pointing from pelvis to neck)
             body_vec = neck - pelvis
             
-            # Ski vectors (try both, use available)
             ski_vecs = []
             if r_tip is not None and r_tail is not None:
                 ski_vecs.append(r_tip - r_tail)
@@ -290,7 +231,6 @@ class TimeSeriesMetricsCalculator:
                 angles[frame_idx] = np.nan
                 continue
             
-            # Average ski vector
             avg_ski_vec = np.mean(ski_vecs, axis=0)
             
             angle = self.calculate_vector_angle(body_vec, avg_ski_vec)
@@ -304,16 +244,7 @@ class TimeSeriesMetricsCalculator:
         Compute stability metrics during flight phase.
         Low std = "frozen" position = good
         High std = corrections/instability = bad
-        
-        Args:
-            bsa_series: Series of body-ski angles
-            bsa_start: Start frame of BSA measurement window
-            bsa_end: End frame of BSA measurement window
-        
-        Returns:
-            Dict with frozenness metrics
         """
-        # Filter to flight window
         mask = (bsa_series.index >= bsa_start) & (bsa_series.index <= bsa_end)
         flight_angles = bsa_series[mask].dropna()
         
@@ -324,37 +255,25 @@ class TimeSeriesMetricsCalculator:
                 'flight_jitter': np.nan
             }
         
-        # Standard deviation (main frozenness metric)
         flight_std = flight_angles.std()
         
-        # Mean BSA
         flight_mean = flight_angles.mean()
         
-        # Jitter: std of frame-to-frame changes (high frequency instability)
         angles = flight_angles.values
         diffs = np.diff(angles)
         jitter = np.std(diffs) if len(diffs) > 1 else np.nan
-        
-        # REMOVED: flight_range (redundant with flight_std, r > 0.85)
-        # REMOVED: flight_trend (low predictive power)
-        
+
         return {
             'flight_std': flight_std,
             'flight_mean_bsa': flight_mean,
             'flight_jitter': jitter
         }
     
-    # =========================================================================
-    # METRIC 3: LANDING SMOOTHNESS (Absorption quality)
-    # =========================================================================
-    
+    # METRIC 3: LANDING SMOOTHNESS (Absorption quality)    
     def compute_hip_height_series(self, jump_df: pd.DataFrame) -> pd.Series:
         """
         Compute hip height (y-coordinate of center_pelvis) for each frame.
         Note: In image coordinates, Y increases downward, so lower Y = higher position.
-        
-        Returns:
-            Series with hip height indexed by frame_idx
         """
         heights = {}
         
@@ -363,7 +282,6 @@ class TimeSeriesMetricsCalculator:
             pelvis = self.get_point(row, 'center_pelvis')
             
             if pelvis is not None:
-                # Invert Y so that higher = larger value
                 heights[frame_idx] = 1.0 - pelvis[1]
             else:
                 heights[frame_idx] = np.nan
@@ -376,24 +294,13 @@ class TimeSeriesMetricsCalculator:
         Compute landing absorption metrics.
         Smooth landing: gradual hip descent
         Hard landing: sudden drop
-        
-        Args:
-            hip_series: Series of hip heights
-            knee_series: Series of knee angles
-            landing_frame: Frame of landing
-            window: Frames after landing to analyze
-        
-        Returns:
-            Dict with smoothness metrics
         """
         start_frame = landing_frame
         end_frame = landing_frame + window
         
-        # Hip descent analysis
         mask_hip = (hip_series.index >= start_frame) & (hip_series.index <= end_frame)
         landing_hip = hip_series[mask_hip].dropna()
         
-        # Knee compression analysis
         mask_knee = (knee_series.index >= start_frame) & (knee_series.index <= end_frame)
         landing_knee = knee_series[mask_knee].dropna()
         
@@ -403,27 +310,18 @@ class TimeSeriesMetricsCalculator:
         }
         
         if len(landing_hip) >= 3:
-            # Velocity of descent (derivative) - KEY METRIC (r=-0.65 with Style_Score)
             hip_velocity = np.gradient(landing_hip.values) * self.fps
             result['landing_hip_velocity'] = np.abs(hip_velocity).mean()
         
         if len(landing_knee) >= 3:
-            # Knee compression (how much knee bends after landing)
             result['landing_knee_compression'] = landing_knee.iloc[0] - landing_knee.min()
-        
-        # REMOVED: landing_hip_drop (depends on jump height, not technique)
-        # REMOVED: landing_smoothness_score (engineered feature, model can learn combination)
         
         return result
     
-    # =========================================================================
-    # MAIN PROCESSING
-    # =========================================================================
-    
+    # MAIN PROCESSING    
     def process_jump(self, jump_id: str, phase_row: pd.Series) -> Dict:
         """Process a single jump and compute all time-series metrics."""
         
-        # Get keypoints for this jump
         jump_df = self.df_kpts[self.df_kpts['jump_id'] == jump_id].copy()
         
         if jump_df.empty:
@@ -432,16 +330,13 @@ class TimeSeriesMetricsCalculator:
         
         result = {'jump_id': jump_id}
         
-        # --- METRIC 1: Knee Velocity (if take_off available) ---
         takeoff_frame = phase_row.get('take_off_frame')
         if pd.notna(takeoff_frame) and phase_row.get('take_off_measurable') == 1:
             takeoff_frame = int(takeoff_frame)
             
-            # Try right knee, then left knee
             knee_r = self.compute_knee_angle_series(jump_df, 'r')
             knee_l = self.compute_knee_angle_series(jump_df, 'l')
             
-            # Use whichever has more data around take-off
             knee_series = knee_r if knee_r.notna().sum() >= knee_l.notna().sum() else knee_l
             
             knee_metrics = self.compute_knee_velocity(knee_series, takeoff_frame)
@@ -452,7 +347,6 @@ class TimeSeriesMetricsCalculator:
                 'knee_angle_at_takeoff': np.nan
             })
         
-        # --- METRIC 2: Flight Frozenness (if BSA window available) ---
         bsa_start = phase_row.get('bsa_start')
         bsa_end = phase_row.get('bsa_end')
         
@@ -462,7 +356,6 @@ class TimeSeriesMetricsCalculator:
             
             bsa_series = self.compute_body_ski_angle_series(jump_df)
             
-            # Extended window for full flight analysis
             landing_frame = phase_row.get('landing')
             if pd.notna(landing_frame):
                 extended_end = int(landing_frame)
@@ -478,7 +371,6 @@ class TimeSeriesMetricsCalculator:
                 'flight_jitter': np.nan
             })
         
-        # --- METRIC 3: Landing Smoothness (if landing available) ---
         landing_frame = phase_row.get('landing')
         
         if pd.notna(landing_frame):
@@ -498,14 +390,11 @@ class TimeSeriesMetricsCalculator:
         return result
     
     def process_all(self) -> bool:
-        """Process all jumps and save results."""
         
         if not self.load_data():
             return False
         
-        print("\n" + "="*60)
         print("COMPUTING TIME-SERIES METRICS")
-        print("="*60)
         
         results = []
         per_frame_results = []
@@ -517,15 +406,13 @@ class TimeSeriesMetricsCalculator:
                 continue
             
             jump_id = self._normalize_jid(jump_id)
-            print(f"\n📊 Processing {jump_id}...")
+            print(f"\n Processing {jump_id}...")
             
-            # Get summary metrics
             jump_result = self.process_jump(jump_id, phase_row)
             
             if jump_result:
                 results.append(jump_result)
                 
-                # Also save per-frame data for time-series visualization
                 jump_df = self.df_kpts[self.df_kpts['jump_id'] == jump_id].copy()
                 if not jump_df.empty:
                     bsa_series = self.compute_body_ski_angle_series(jump_df)
@@ -541,21 +428,16 @@ class TimeSeriesMetricsCalculator:
                             'hip_height': hip_series.get(frame_idx, np.nan)
                         })
         
-        # Save summary
         df_summary = pd.DataFrame(results)
         df_summary.to_csv(self.output_summary, index=False)
-        print(f"\n✅ Summary saved: {self.output_summary}")
+        print(f"\n Summary saved: {self.output_summary}")
         print(f"   Jumps processed: {len(df_summary)}")
         
-        # Save per-frame
         df_per_frame = pd.DataFrame(per_frame_results)
         df_per_frame.to_csv(self.output_per_frame, index=False)
-        print(f"✅ Per-frame saved: {self.output_per_frame}")
+        print(f" Per-frame saved: {self.output_per_frame}")
         
-        # Print summary statistics
-        print("\n" + "="*60)
         print("SUMMARY STATISTICS")
-        print("="*60)
         
         metrics_to_show = ['knee_peak_velocity', 'flight_std', 'flight_jitter', 'landing_hip_velocity']
         for metric in metrics_to_show:
@@ -570,7 +452,6 @@ class TimeSeriesMetricsCalculator:
                     print(f"  N:    {len(valid)}")
         
         return True
-
 
 if __name__ == "__main__":
     calculator = TimeSeriesMetricsCalculator()

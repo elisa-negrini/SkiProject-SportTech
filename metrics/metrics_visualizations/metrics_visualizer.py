@@ -7,26 +7,16 @@ from pathlib import Path
 
 class MetricsVisualizer:
     def __init__(self, dataset_root='.', metrics_file='metrics/core_metrics/metrics_per_frame.csv'):
-        self.root = Path(dataset_root)
-        self.metrics_path = Path(metrics_file)
-        self.summary_metrics_path = Path('metrics/timeseries_metrics/timeseries_summary.csv')
-
-        candidates = [
-            Path('jump_phases_SkiTB.csv'),
-            self.root / 'jump_phases_SkiTB.csv',
-            Path(__file__).parent / 'jump_phases_SkiTB.csv',
-            Path(__file__).parent.parent.parent / 'jump_phases_SkiTB.csv'
-        ]
+        self.root = Path(__file__).parent.parent.parent
         
-        self.phases_path = None
-        for p in candidates:
-            if p.exists():
-                self.phases_path = p
-                print(f"✅ Phases file found at: {p}")
-                break
+        self.metrics_path = self.root / metrics_file
+        self.summary_metrics_path = self.root / 'metrics' / 'core_metrics' / 'timeseries_metrics' / 'timeseries_summary.csv'
+        self.phases_path = self.root / 'dataset' / 'jump_phases_SkiTB.csv'
         
-        if self.phases_path is None:
-            print("⚠️ Warning: jump_phases_SkiTB.csv not found. Landing metrics visualization may fail.")
+        if not self.phases_path.exists():
+            print(f" Warning: {self.phases_path} not found. Landing metrics visualization may fail.")
+        else:
+            print(f" Phases file found at: {self.phases_path}")
 
         self.kpt_id_map = {
             'head': '1', 'neck': '2',
@@ -625,7 +615,7 @@ class MetricsVisualizer:
                 for i, jid in enumerate(valid_jumps):
                     print(f"[{i+1}/{len(valid_jumps)}] Processing {jid}...")
                     self.process_jump(jid, metric_name, interactive=False)
-                print("\n✅ Batch processing complete!")
+                print("\n Batch processing complete!")
             else:
                 print("Cancelled.")
 

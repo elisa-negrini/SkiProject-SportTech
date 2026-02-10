@@ -42,9 +42,6 @@ warnings.filterwarnings('ignore')
 
 
 class StylePenaltyModel:
-    """
-    Transparent model predicting style score penalties using 3 manual features.
-    """
     
     # Manual feature selection - these are the 3 key features
     MANUAL_FEATURES = {
@@ -76,7 +73,6 @@ class StylePenaltyModel:
         self.base_path = Path(__file__).parent.parent.parent
         self.metrics_path = self.base_path / 'metrics'
         
-        # Output directory
         self.output_dir = self.metrics_path / 'style_penalty_model'
         self.output_dir.mkdir(exist_ok=True)
         
@@ -87,21 +83,19 @@ class StylePenaltyModel:
         
     def load_data(self) -> pd.DataFrame:
         """Load and merge all required data."""
-        print("\n📂 Loading data...")
+        print("\n Loading data...")
         
-        # Load JP data
         jp_file = self.base_path / 'dataset' / 'JP_data.csv'
         df_jp = pd.read_csv(jp_file)
         df_jp['jump_id'] = df_jp['ID']
         
-        # Compute Style_Score (middle 3 of 5 judges)
         scores = []
         for _, row in df_jp.iterrows():
             judges = [row.get(f'AthleteJdg{x}', np.nan) for x in 'ABCDE']
             valid = [s for s in judges if pd.notna(s)]
             
             if len(valid) >= 5:
-                style = sum(sorted(valid)[1:4])  # Middle 3 of 5
+                style = sum(sorted(valid)[1:4]) 
             elif len(valid) >= 3:
                 style = sum(sorted(valid)[:3])
             else:
@@ -116,12 +110,10 @@ class StylePenaltyModel:
         df = pd.DataFrame(scores)
         print(f"   ✓ JP data: {len(df)} jumps")
         
-        # Max style for penalty calculation
         self.max_style = df['Style_Score'].max()
         print(f"   ✓ Max Style Score: {self.max_style:.1f}")
         
-        # Load time-series metrics
-        ts_file = self.metrics_path / 'timeseries_metrics' / 'timeseries_summary.csv'
+        ts_file = self.metrics_path / 'core_metrics'/ 'timeseries_metrics' / 'additional_timeseries_metrics.csv'
         if ts_file.exists():
             df_ts = pd.read_csv(ts_file)
             df = df.merge(df_ts, on='jump_id', how='left')
@@ -129,7 +121,6 @@ class StylePenaltyModel:
         else:
             print(f"   ⚠️ Time-series file not found: {ts_file}")
         
-        # Load advanced metrics
         adv_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
         if adv_file.exists():
             df_adv = pd.read_csv(adv_file)
@@ -138,14 +129,13 @@ class StylePenaltyModel:
         else:
             print(f"   ⚠️ Advanced metrics file not found: {adv_file}")
         
-        # Clean
         df = df.replace([np.inf, -np.inf], np.nan)
         
         return df
     
     def prepare_features(self, df: pd.DataFrame) -> tuple:
         """Prepare feature matrix using only manual features."""
-        print("\n🔍 Preparing manual features...")
+        print("\n Preparing manual features...")
         
         available_features = []
         for feat_name in self.MANUAL_FEATURES.keys():
@@ -161,43 +151,36 @@ class StylePenaltyModel:
             print("   ⚠️ No features available!")
             return None, None, []
         
-        # Filter to rows with at least 2 features available
         df_valid = df.dropna(subset=['Style_Score'])
         feature_mask = df_valid[available_features].notna().sum(axis=1) >= 2
         df_valid = df_valid[feature_mask].copy()
         
-        # Compute penalty (points lost from max)
         df_valid['style_penalty'] = self.max_style - df_valid['Style_Score']
         
-        # Impute missing with median
         X = df_valid[available_features].copy()
         X = X.fillna(X.median())
         
         y = df_valid['style_penalty']
         
-        print(f"\n   📊 Final dataset: {len(df_valid)} samples, {len(available_features)} features")
+        print(f"\n    Final dataset: {len(df_valid)} samples, {len(available_features)} features")
         
         return X, y, df_valid
     
     def train_model(self, X: pd.DataFrame, y: pd.Series) -> dict:
         """Train Ridge regression with LOO-CV."""
-        print("\n🎯 Training Style Penalty Model...")
+        print("\n Training Style Penalty Model...")
         print(f"   Training samples: {len(X)}")
         print(f"   Penalty range: {y.min():.1f} to {y.max():.1f} points")
         
-        # Standardize features
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X)
         
-        # Train Ridge regression
         self.model = Ridge(alpha=1.0)
         self.model.fit(X_scaled, y)
         
-        # Store coefficients
         for i, feat in enumerate(X.columns):
             self.coefficients[feat] = self.model.coef_[i]
         
-        # LOO-CV for evaluation
         loo = LeaveOneOut()
         predictions = np.zeros(len(X))
         
@@ -210,7 +193,6 @@ class StylePenaltyModel:
             model_temp.fit(X_train, y_train)
             predictions[test_idx] = model_temp.predict(X_test)
         
-        # Metrics
         errors = predictions - y.values
         mae = np.mean(np.abs(errors))
         rmse = np.sqrt(np.mean(errors**2))
@@ -218,7 +200,7 @@ class StylePenaltyModel:
         ss_tot = np.sum((y - y.mean())**2)
         r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
         
-        print(f"\n   📈 Model Performance (LOO-CV):")
+        print(f"\n    Model Performance (LOO-CV):")
         print(f"      R² = {r2:.3f}")
         print(f"      MAE = {mae:.2f} style points")
         print(f"      RMSE = {rmse:.2f} style points")
@@ -233,17 +215,13 @@ class StylePenaltyModel:
     
     def generate_report(self, df_valid: pd.DataFrame, results: dict):
         """Generate human-readable report."""
-        
-        print("\n" + "=" * 70)
+
         print("📋 STYLE PENALTY MODEL - COACH REPORT")
-        print("=" * 70)
         
-        # Formula
-        print("\n🎯 STYLE PENALTY FORMULA:")
-        print("-" * 50)
+        print("\n STYLE PENALTY FORMULA:")
+
         print("Style_Penalty (points lost) =")
         
-        # Sort by absolute coefficient
         sorted_feats = sorted(self.coefficients.items(), key=lambda x: abs(x[1]), reverse=True)
         total_abs = sum(abs(c) for _, c in sorted_feats)
         
@@ -256,9 +234,7 @@ class StylePenaltyModel:
         
         print(f"    + {self.model.intercept_:6.2f} (base penalty)")
         
-        # Interpretation
-        print("\n📖 INTERPRETATION:")
-        print("-" * 50)
+        print("\n INTERPRETATION:")
         
         for feat, coef in sorted_feats:
             feat_info = self.MANUAL_FEATURES.get(feat, {})
@@ -274,16 +250,14 @@ class StylePenaltyModel:
                 print(f"    → Higher value = LESS penalty (better)")
                 print(f"    💡 Coach tip: INCREASE this metric")
         
-        # Athlete analysis
         if 'AthleteName' in df_valid.columns:
             df_valid = df_valid.copy()
             df_valid['predicted_penalty'] = results['predictions']
             df_valid['prediction_error'] = results['predictions'] - df_valid['style_penalty']
             
-            print("\n📊 ATHLETE ANALYSIS:")
+            print("\n ATHLETE ANALYSIS:")
             print("-" * 50)
             
-            # Worst predictions (highest penalty)
             worst = df_valid.nlargest(5, 'style_penalty')
             print("\n  ⚠️ JUMPS WITH HIGHEST STYLE PENALTY:")
             for _, row in worst.iterrows():
@@ -296,7 +270,6 @@ class StylePenaltyModel:
     def save_results(self, df_valid: pd.DataFrame, results: dict):
         """Save predictions and formula to files."""
         
-        # Predictions CSV
         df_out = df_valid[['jump_id', 'AthleteName', 'Style_Score']].copy()
         df_out['style_penalty_actual'] = df_valid['style_penalty']
         df_out['style_penalty_predicted'] = results['predictions']
@@ -304,18 +277,14 @@ class StylePenaltyModel:
         
         pred_file = self.output_dir / 'style_penalty_predictions.csv'
         df_out.to_csv(pred_file, index=False)
-        print(f"✅ Saved: {pred_file}")
+        print(f" Saved: {pred_file}")
         
-        # Formula text file
         formula_file = self.output_dir / 'STYLE_PENALTY_FORMULA.txt'
         with open(formula_file, 'w', encoding='utf-8') as f:
-            f.write("=" * 60 + "\n")
             f.write("STYLE PENALTY MODEL\n")
             f.write("Predicts Style Points Lost Due to Biomechanical Flaws\n")
-            f.write("=" * 60 + "\n\n")
             
             f.write("FORMULA:\n")
-            f.write("-" * 40 + "\n")
             f.write("Style_Penalty (points) =\n")
             
             sorted_feats = sorted(self.coefficients.items(), key=lambda x: abs(x[1]), reverse=True)
@@ -331,7 +300,6 @@ class StylePenaltyModel:
             f.write(f"    +{self.model.intercept_:7.4f} (intercept)\n\n")
             
             f.write("FEATURE DETAILS:\n")
-            f.write("-" * 40 + "\n\n")
             
             for feat, coef in sorted_feats:
                 feat_info = self.MANUAL_FEATURES.get(feat, {})
@@ -354,41 +322,29 @@ class StylePenaltyModel:
             f.write(f"  MAE = {results['mae']:.2f} points\n")
             f.write(f"  RMSE = {results['rmse']:.2f} points\n")
         
-        print(f"✅ Saved: {formula_file}")
+        print(f" Saved: {formula_file}")
     
     def run(self):
-        """Main execution."""
-        print("=" * 70)
         print("STYLE PENALTY MODEL")
-        print("Using Manual Feature Selection")
-        print("=" * 70)
         
-        # Load data
         df = self.load_data()
         
-        # Prepare features
         X, y, df_valid = self.prepare_features(df)
         
         if X is None or len(X) < 10:
             print("❌ Insufficient data for model training")
             return False
         
-        # Train model
         results = self.train_model(X, y)
         
-        # Generate report
         self.generate_report(df_valid, results)
         
-        # Save results
         self.save_results(df_valid, results)
         
-        print("\n" + "=" * 70)
-        print("✅ STYLE PENALTY MODEL COMPLETE")
+        print(" STYLE PENALTY MODEL COMPLETE")
         print(f"Results saved to: {self.output_dir}")
-        print("=" * 70)
         
         return True
-
 
 if __name__ == "__main__":
     model = StylePenaltyModel()

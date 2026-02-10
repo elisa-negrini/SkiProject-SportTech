@@ -141,7 +141,6 @@ class MetricsComputation:
             vec = np.array([1, slope])
             vec = vec / np.linalg.norm(vec)
             
-            # Correct direction (point towards feet)
             vec_ref = points[-1] - points[0]
             if np.dot(vec, vec_ref) < 0:
                 vec = -vec
@@ -484,16 +483,11 @@ class MetricsComputation:
             'landing_absorption_rate': absorption_rate
         }
 
-    def process(self) -> bool:
-        """Main processing loop for all jumps and frames."""
-        
+    def process(self) -> bool:        
         if not self.load_data():
             return False
         
-        print("\n" + "=" * 80)
-        print("UNIFIED METRICS COMPUTATION")
-        print("Ski Jumping Biomechanical Analysis (Core + Advanced Metrics)")
-        print("=" * 80)
+        print("METRICS COMPUTATION")
         
         detailed_results = []
         summary_results = []
@@ -503,7 +497,7 @@ class MetricsComputation:
             if pd.isna(jump_id) or jump_id == '':
                 continue
             
-            print(f"\n📊 Processing {jump_id}...")
+            print(f"\n Processing {jump_id}...")
             
             jump_frames = self.df_kpts[self.df_kpts['jump_id'] == jump_id].copy()
             if jump_frames.empty:
@@ -631,14 +625,12 @@ class MetricsComputation:
         df_summary.to_csv(self.output_summary, index=False)
         print(f" Summary metrics saved: {self.output_summary}")
         
-        print("\n" + "=" * 80)
+
         print(f" Processing complete: {len(df_summary)} jumps")
-        print("=" * 80 + "\n")
         
         return True
     
     def aggregate_core_metrics(self, df_detailed: pd.DataFrame) -> pd.DataFrame:
-        """Aggregate core metrics per jump."""
         if df_detailed.empty:
             return pd.DataFrame()
         
@@ -663,7 +655,6 @@ class MetricsComputation:
         return pd.DataFrame(summary_rows)
 
 def main():
-    """Main entry point."""
     calculator = MetricsComputation()
     success = calculator.process()
     

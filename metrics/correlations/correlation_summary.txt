@@ -1,0 +1,84 @@
+INTELLIGENT CORRELATION ANALYSIS - SUMMARY REPORT
+======================================================================
+
+Total correlations computed: 60
+Significant correlations (p<0.05): 3
+
+
+======================================================================
+TARGET: AthleteScore
+======================================================================
+
+[+] SIGNIFICANT CORRELATIONS (p<0.05): 1
+----------------------------------------------------------------------
+
+avg_v_style_front:
+    r =  0.5904  (p = 0.0160)
+    95% CI: [ 0.1339,  0.8402]
+    R^2 = 0.3486 (34.86% variance explained)
+    Spearman rho =  0.4765  (p = 0.0621)
+
+[*] TOP 10 CORRELATIONS (all):
+----------------------------------------------------------------------
+ 1. [*] avg_v_style_front                   r= 0.5904  (n=16)
+ 2. [ ] telemark_stability                  r= 0.3286  (n=31)
+ 3. [ ] avg_symmetry_index_back             r=-0.3170  (n= 6)
+ 4. [ ] flight_mean_bsa                     r=-0.2787  (n=30)
+ 5. [ ] takeoff_timing_offset               r= 0.2170  (n=24)
+ 6. [ ] telemark_scissor_mean               r=-0.2016  (n=16)
+ 7. [ ] flight_std                          r=-0.2001  (n=30)
+ 8. [ ] avg_telemark_leg_angle              r=-0.1599  (n=22)
+ 9. [ ] avg_v_style_back                    r=-0.1235  (n= 6)
+10. [ ] avg_body_ski_angle                  r=-0.1183  (n=30)
+
+======================================================================
+TARGET: Physical_Score
+======================================================================
+
+[+] SIGNIFICANT CORRELATIONS (p<0.05): 1
+----------------------------------------------------------------------
+
+avg_v_style_front:
+    r =  0.5795  (p = 0.0186)
+    95% CI: [ 0.1176,  0.8353]
+    R^2 = 0.3358 (33.58% variance explained)
+    Spearman rho =  0.4735  (p = 0.0639)
+
+[*] TOP 10 CORRELATIONS (all):
+----------------------------------------------------------------------
+ 1. [*] avg_v_style_front                   r= 0.5795  (n=16)
+ 2. [ ] telemark_stability                  r= 0.3340  (n=31)
+ 3. [ ] avg_symmetry_index_back             r=-0.3246  (n= 6)
+ 4. [ ] flight_mean_bsa                     r=-0.2721  (n=30)
+ 5. [ ] takeoff_timing_offset               r= 0.2143  (n=24)
+ 6. [ ] telemark_scissor_mean               r=-0.2136  (n=16)
+ 7. [ ] flight_std                          r=-0.1919  (n=30)
+ 8. [ ] avg_telemark_leg_angle              r=-0.1528  (n=22)
+ 9. [ ] avg_v_style_back                    r=-0.1218  (n= 6)
+10. [ ] landing_absorption_rate             r=-0.1172  (n=31)
+
+======================================================================
+TARGET: Style_Score
+======================================================================
+
+[+] SIGNIFICANT CORRELATIONS (p<0.05): 1
+----------------------------------------------------------------------
+
+landing_knee_compression:
+    r = -0.5713  (p = 0.0008)
+    95% CI: [-0.7698, -0.2721]
+    R^2 = 0.3264 (32.64% variance explained)
+    Spearman rho = -0.4798  (p = 0.0063)
+
+[*] TOP 10 CORRELATIONS (all):
+----------------------------------------------------------------------
+ 1. [*] landing_knee_compression            r=-0.5713  (n=31)
+ 2. [ ] avg_symmetry_index_back             r= 0.5376  (n= 6)
+ 3. [ ] telemark_scissor_mean               r= 0.4505  (n=16)
+ 4. [ ] avg_v_style_front                   r= 0.3730  (n=16)
+ 5. [ ] avg_telemark_leg_angle              r=-0.3187  (n=22)
+ 6. [ ] flight_std                          r=-0.3045  (n=30)
+ 7. [ ] flight_mean_bsa                     r=-0.2567  (n=30)
+ 8. [ ] landing_absorption_rate             r= 0.1830  (n=31)
+ 9. [ ] telemark_stability                  r=-0.1697  (n=31)
+10. [ ] landing_hip_velocity                r= 0.1450  (n=31)

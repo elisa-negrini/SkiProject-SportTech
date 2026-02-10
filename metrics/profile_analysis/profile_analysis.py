@@ -1,16 +1,5 @@
-"""
-Comprehensive Ski Jump Analysis (Unified Pipeline)
-==================================================
-Combines Phase Segmentation and Time-Series Analysis.
-
-FEATURES:
-1. Phase Segmentation & Metrics (CSV per-jump).
-2. Trajectory Analysis (Top vs Flop).
-3. EXPORT: Saves the specific curve data used for the plot to CSV.
-"""
-
 import pandas as pd
-from typing import Dict, List, Optional # <--- QUESTA RIGA MANCAVA
+from typing import Dict, List, Optional
 import numpy as np
 from pathlib import Path
 from scipy.interpolate import interp1d
@@ -23,34 +12,26 @@ plt.style.use('seaborn-v0_8-whitegrid')
 
 @dataclass
 class JumpPhase:
-    """Represents a single phase of a ski jump."""
     name: str
     start_frame: int
     end_frame: int
     duration_seconds: float
 
 class SkiJumpAnalyst:
-    """
-    Unified analyzer for Ski Jumping Biomechanics.
-    """
     
     def __init__(self):
-        # Paths
         self.base_path = Path(__file__).parent.parent.parent
         self.data_dir = self.base_path / 'dataset'
         self.output_dir = self.base_path / 'metrics' / 'profile_analysis'
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Files
         self.keypoints_file = self.data_dir / 'keypoints_dataset.csv'
         self.phases_file = self.data_dir / 'jump_phases_SkiTB.csv'
         self.jp_data_file = self.data_dir / 'JP_data.csv'
         
-        # Settings
         self.fps = 30
-        self.normalized_length = 100  # Points for trajectory normalization
+        self.normalized_length = 100  
         
-        # Keypoint Map
         self.kpt_map = {
             'head': '1', 'neck': '2', 'pelvis': '9',
             'r_shoulder': '3', 'l_shoulder': '6',
@@ -61,16 +42,12 @@ class SkiJumpAnalyst:
             'l_tip': '16', 'l_tail': '15'
         }
 
-    # =========================================================================
-    # DATA LOADING
-    # =========================================================================
-    
     def load_data(self) -> bool:
         if not self.keypoints_file.exists():
             print(f"❌ Missing: {self.keypoints_file}")
             return False
             
-        print("📂 Loading datasets...")
+        print("Loading datasets...")
         self.df_kpts = pd.read_csv(self.keypoints_file)
         self.df_kpts['jump_id'] = self.df_kpts['jump_id'].apply(self._normalize_jid)
         self.df_kpts['frame_idx'] = self.df_kpts['frame_name'].apply(self._extract_frame_num)
@@ -87,7 +64,7 @@ class SkiJumpAnalyst:
             self.df_scores = None
             print("⚠️ JP_data.csv not found (Scores unavailable)")
             
-        print(f"✅ Loaded: {len(self.df_kpts['jump_id'].unique())} jumps")
+        print(f" Loaded: {len(self.df_kpts['jump_id'].unique())} jumps")
         return True
 
     def _normalize_jid(self, val) -> str:
@@ -126,10 +103,6 @@ class SkiJumpAnalyst:
             return np.array([x, y])
         except: return None
 
-    # =========================================================================
-    # PHASE LOGIC
-    # =========================================================================
-
     def segment_phases(self, phase_row) -> Dict[str, JumpPhase]:
         phases = {}
         def get_val(col): 
@@ -157,7 +130,6 @@ class SkiJumpAnalyst:
 
     def compute_phase_metrics(self, jump_df, phases) -> Dict:
         metrics = {}
-        # Take-off
         if 'take_off' in phases:
             p = phases['take_off']
             df_p = jump_df[(jump_df['frame_idx'] >= p.start_frame) & (jump_df['frame_idx'] <= p.end_frame)]
@@ -175,7 +147,6 @@ class SkiJumpAnalyst:
                 vel = np.diff(knee_angles) * self.fps
                 metrics['takeoff_explosiveness'] = np.max(vel)
         
-        # Mid-Flight (BSA)
         if 'mid_flight' in phases:
             p = phases['mid_flight']
             df_p = jump_df[(jump_df['frame_idx'] >= p.start_frame) & (jump_df['frame_idx'] <= p.end_frame)]
@@ -191,7 +162,6 @@ class SkiJumpAnalyst:
                 metrics['flight_mean_bsa'] = np.mean(bsa_values)
                 metrics['flight_stability_std'] = np.std(bsa_values)
         
-        # Landing
         if 'landing' in phases:
             p = phases['landing']
             df_p = jump_df[(jump_df['frame_idx'] >= p.start_frame) & (jump_df['frame_idx'] <= p.end_frame)]
@@ -202,10 +172,6 @@ class SkiJumpAnalyst:
             if scissor_diffs:
                 metrics['landing_telemark_quality'] = np.mean(scissor_diffs)
         return metrics
-
-    # =========================================================================
-    # TRAJECTORY ANALYSIS
-    # =========================================================================
 
     def normalize_trajectory(self, series: pd.Series) -> np.ndarray:
         clean = series.dropna()
@@ -245,7 +211,6 @@ class SkiJumpAnalyst:
         top_group = df_s.head(top_n)
         flop_group = df_s.tail(top_n)
         
-        # PRINT NAMES
         print(f"\n🏆 TOP {top_n} ATLETI (High Style):")
         for _, r in top_group.iterrows(): print(f"   {r['jump_id']}: {r['AthleteName']} ({r['Style_Score']})")
         print(f"\n📉 FLOP {top_n} ATLETI (Low Style):")
@@ -271,10 +236,6 @@ class SkiJumpAnalyst:
             'flop_mean': flop_mean, 'flop_std': flop_std
         }
 
-    # =========================================================================
-    # PLOTTING & EXPORT
-    # =========================================================================
-
     def plot_top_vs_flop(self, data):
         if data['top_mean'] is None: return
         x = np.linspace(0, 100, self.normalized_length)
@@ -293,11 +254,10 @@ class SkiJumpAnalyst:
         
         out_file = self.output_dir / 'top_vs_flop_comparison.png'
         plt.savefig(out_file, dpi=150)
-        print(f"📊 Plot saved: {out_file}")
+        print(f" Plot saved: {out_file}")
         plt.close()
 
     def save_trend_csv(self, data):
-        """Saves the exact curves used in the plot to CSV."""
         if data['top_mean'] is None: return
         
         df = pd.DataFrame({
@@ -310,16 +270,13 @@ class SkiJumpAnalyst:
         
         out_file = self.output_dir / 'top_vs_flop_trends.csv'
         df.to_csv(out_file, index=False)
-        print(f"💾 Curve data saved: {out_file}")
+        print(f" Curve data saved: {out_file}")
 
     def run(self):
-        print("="*60)
         print("🚀 SKI JUMP UNIFIED ANALYSIS")
-        print("="*60)
         
         if not self.load_data(): return
         
-        # 1. Per-Jump Metrics
         results = []
         for jid in self.df_kpts['jump_id'].unique():
             p_row = self.df_phases[self.df_phases['jump_id'] == jid]
@@ -332,16 +289,15 @@ class SkiJumpAnalyst:
             
         df_res = pd.DataFrame(results)
         df_res.to_csv(self.output_dir / 'comprehensive_metrics.csv', index=False)
-        print(f"\n✅ Phase metrics saved: {self.output_dir / 'comprehensive_metrics.csv'}")
+        print(f"\n Phase metrics saved: {self.output_dir / 'comprehensive_metrics.csv'}")
         
-        # 2. Top vs Flop Analysis
         tvf_data = self.analyze_top_vs_flop()
         if tvf_data:
             self.plot_top_vs_flop(tvf_data)
-            self.save_trend_csv(tvf_data) # <--- NEW: Saves the graph data
+            self.save_trend_csv(tvf_data)
             
         print("\n" + "="*60)
-        print("✅ DONE")
+        print(" DONE")
 
 if __name__ == "__main__":
     SkiJumpAnalyst().run()
