@@ -63,18 +63,19 @@ def main() -> None:
         cbar_kws={"label": "Pearson r"},
     )
 
-    plt.title("Selected Correlations")
-    plt.xlabel("Target")
-    plt.ylabel("Metric")
+    plt.title("Selected Correlations", fontweight="bold")
+    plt.xlabel("Target", fontweight="bold")
+    plt.ylabel("Metric", fontweight="bold")
     plt.xticks(rotation=0)
     plt.yticks(rotation=0)
     plt.figtext(
         0.5,
-        0.02,
+        0.015,
         "Legend (Pearson p-value): ** pearson_p < 0.05   * pearson_p < 0.10",
         ha="center",
+        fontstyle="italic",
     )
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
 
