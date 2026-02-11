@@ -85,11 +85,11 @@ else:
     for idx, row in filtered_df.iterrows():
         col = cols[idx % 4]
         with col:
-            img_path = row['image_path']
+            img_path = row['image_path'] 
             metric_label = row['metric_clean']
             caption_text = f"{row['jump_id']} - {row['phase']} - {row['skier']}"
             if metric_label != "Raw Frame":
-                caption_text += f"\nMetric: {metric_label}"
+                caption_text += f" "
             if img_path and os.path.exists(img_path):
                 try:
                     st.image(img_path, width='stretch')

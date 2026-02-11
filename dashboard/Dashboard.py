@@ -13,17 +13,16 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 col_text, col_img = st.columns([4, 1], gap="medium", vertical_alignment="bottom")
 
 with col_text:
-    st.title("Project Results: Custom Annotations on Ski-TB")
+    st.title("Ski Jump Performance Analysis Dashboard")
     st.markdown("""
     This dashboard presents our custom **23-keypoint skeleton annotations** applied to the **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)**.
 
     **Dashboard Structure:**
     
-    * 📂 **Gallery Explorer** Browse and filter the complete dataset, viewing both raw frames and skeleton visualizations across different jump phases.
+    * **Gallery Explorer** Browse and filter the complete dataset, viewing both raw frames and skeleton visualizations across different jump phases.
       
-    * 📊 **Metric Analysis** Inspect specific quantitative data, analyzing metrics like ski opening angles and body posture for individual jumps.
+    * **Metric Analysis** Inspect specific quantitative data and qualitative metrics computed on the annotated dataset.
 
-    *Select a module from the sidebar to begin.*
     """)
 
 with col_img:

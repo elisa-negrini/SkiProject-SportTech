@@ -9,9 +9,9 @@ sys.path.append("..")
 
 st.set_page_config(page_title="Metric Analysis", page_icon="📊", layout="wide")
 
-st.title("📊 Detailed Metric Analysis")
+st.title("Detailed Metric Analysis")
 
-viz_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "metrics", "visualizations", "frame_overlays"))
+viz_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "metrics", "metrics_visualizations", "frame_overlays"))
 frame_metrics_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "metrics", "core_metrics", "metrics_per_frame.csv"))
 summary_metrics_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "metrics", "timeseries_metrics", "timeseries_summary.csv"))
 
@@ -37,9 +37,8 @@ metric_display_to_col = {
     "V-Style Angle (back)": "v_style_angle_back",
     "Take Off Knee Angle": "takeoff_knee_angle",
     "Body Ski Angle": "body_ski_angle",
-    "Symmetry Index": "symmetry_index_back",
-    "Telemark Offset": "telemark_depth_back_ratio", 
-    "Landing Knee Compression": "landing_knee_compression"
+    "Symmetry Index": "symmetry_index_back", 
+    "Telemark Scissor": "telemark_scissor_ratio"
 }
 
 metric_display_to_folder = {
@@ -48,8 +47,7 @@ metric_display_to_folder = {
     "Take Off Knee Angle": "takeoff_knee_angle",
     "Body Ski Angle": "body_ski_angle",
     "Symmetry Index": "symmetry_index_back",
-    "Telemark Offset": "telemark_depth_back_ratio", 
-    "Landing Knee Compression": "landing_knee_compression"
+    "Telemark Scissor": "telemark_scissor"
 }
 
 st.divider()
@@ -115,7 +113,13 @@ with col_sel:
 
     if real_val is not None:
         lbl = "Compression (Global)" if selected_metric == "Landing Knee Compression" else f"Value at Frame {current_frame_idx}"
-        st.metric(label=lbl, value=f"{real_val:.2f}")
+        
+        fmt = "{:.3f}" if selected_metric == "Telemark Scissor" else "{:.2f}"
+        st.metric(label=lbl, value=fmt.format(real_val))
+
+        if selected_metric == "Telemark Scissor":
+            st.caption(f"= {real_val * 100:.1f}% of leg height")
+
     else:
         st.metric(label=f"Frame {current_frame_idx or '?'}", value="--")
         st.caption("Numeric data not found for this frame.")
@@ -187,8 +191,10 @@ with col_stats:
         curr_val = df_agg[df_agg['jump_id'] == selected_jump]['Average Value'].iloc[0]
         avg_val = df_agg['Average Value'].mean()
         diff = curr_val - avg_val
-        st.caption(f"Your Jump: **{curr_val:.2f}** | Global Average: **{avg_val:.2f}**")
-        if diff > 0: st.success(f"+{diff:.2f} above average")
-        else: st.error(f"{diff:.2f} below average")
+        fmt = "{:.3f}" if selected_metric == "Telemark Scissor" else "{:.2f}"
+        
+        st.caption(f"Your Jump: **{fmt.format(curr_val)}** | Global Average: **{fmt.format(avg_val)}**")
+        if diff > 0: st.success(f"+{fmt.format(diff)} above average")
+        else: st.error(f"{fmt.format(diff)} below average")
     else:
         st.info("Insufficient data for comparison chart.")
