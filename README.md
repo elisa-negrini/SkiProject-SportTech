@@ -91,7 +91,7 @@ Starting from the annotated and normalized keypoints, we computed a set of **2D 
 
 <table border="0">
   <tr>
-    <td align="center"><img src="https://github.com/user-attachments/assets/3745bbe6-a11f-42e0-a7d5-743ccaa7030f" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/e7de4198-a349-4cc4-ad77-8417c19274e9" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/979ac743-5b81-496f-addb-45aa4e77a31b" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/d5df2001-f4b6-431c-bb9f-784d43e4ef5d" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
