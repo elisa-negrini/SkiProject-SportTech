@@ -443,6 +443,7 @@ class MetricsVisualizer:
         if cat_with_kpts: kpt_names = cat_with_kpts['keypoints']
         else: return
         
+        # --- LOGICA SELEZIONE DATAFRAME (INVARIATA) ---
         if metric_name == 'v_style_angle':
             mask = self.df['v_style_angle_front'].notna() | self.df['v_style_angle_back'].notna()
             df_view = self.df[(self.df['jump_id'] == sel_jump) & mask].copy()
@@ -476,13 +477,18 @@ class MetricsVisualizer:
 
         print(f" -> Processing {sel_jump}: {len(df_view)} frames...")
         
+        # --- COSTRUZIONE MAPPE ---
         ann_map = {a['image_id']: a for a in coco['annotations']}
         img_map = {img['file_name']: img['id'] for img in coco['images']}
+        
+        # Mapping Frame Index -> JSON Filename
         frame_lookup = {}
         for fname in img_map.keys():
             import re
             m = re.search(r"(\d+)", fname)
-            if m: frame_lookup[int(m.group(1))] = fname
+            if m: 
+                # Assumiamo che il primo numero trovato sia il frame index
+                frame_lookup[int(m.group(1))] = fname
 
         indices = list(df_view.index)
         curr_ptr = 0
@@ -491,6 +497,7 @@ class MetricsVisualizer:
             row = df_view.loc[indices[curr_ptr]]
             f_idx = int(row['frame_idx'])
             
+            # --- RECUPERO VALORE METRICA (INVARIATO) ---
             val = 0.0
             view_str = ""
             if 'landing_knee_compression' in metric_name:
@@ -509,19 +516,44 @@ class MetricsVisualizer:
             else:
                 val = row.get(metric_name, 0.0)
             
-            fname = frame_lookup.get(f_idx)
-            if not fname: curr_ptr += 1; continue
+            # --- FIX: GESTIONE NOME FILE E PATH IMMAGINE ---
+            json_fname = frame_lookup.get(f_idx)
+            
+            # Creiamo una lista di candidati per il nome del file su disco
+            file_candidates = []
+            if json_fname: 
+                file_candidates.append(json_fname) # 1. Prova il nome esatto del JSON
+            
+            # 2. Prova il formato standard a 5 cifre (es. 00413.jpg)
+            file_candidates.append(f"{f_idx:05d}.jpg")
+            # 3. Prova il formato semplice (es. 413.jpg)
+            file_candidates.append(f"{f_idx}.jpg")
+            
+            found_img_path = None
+            for cand in file_candidates:
+                if (frames_dir / cand).exists():
+                    found_img_path = frames_dir / cand
+                    break
+            
+            if not found_img_path: 
+                print(f"⚠️ SKIP: Immagine non trovata per frame {f_idx}. Cercato: {file_candidates}")
+                curr_ptr += 1; continue
                 
-            img_path = frames_dir / fname
-            if not img_path.exists(): curr_ptr += 1; continue
-                
-            img = cv2.imread(str(img_path))
-            if img is None: curr_ptr += 1; continue
+            img = cv2.imread(str(found_img_path))
+            if img is None: 
+                print(f"⚠️ SKIP: Impossibile leggere immagine {found_img_path}")
+                curr_ptr += 1; continue
 
-            img_id = img_map[fname]
+            # Se non abbiamo trovato il nome nel JSON, non possiamo trovare l'annotazione
+            if not json_fname:
+                print(f"⚠️ SKIP: Frame {f_idx} non trovato nel JSON delle annotazioni")
+                curr_ptr += 1; continue
+
+            img_id = img_map.get(json_fname) # Usiamo il nome del JSON per prendere l'ID
             ann = ann_map.get(img_id)
             
             if ann and 'bbox' in ann:
+                # --- VISUALIZZAZIONE (INVARIATA) ---
                 crop_img, offset = self.crop_to_skier(img, ann, margin=0.5)
                 kpts = ann['keypoints']
                 crop_img, scale_factor = self.smart_resize(crop_img, min_side=600)
@@ -551,6 +583,7 @@ class MetricsVisualizer:
                 else:
                     curr_ptr += 1
             else:
+                print(f"⚠️ SKIP: Annotazione o Bbox mancante per frame {f_idx}")
                 curr_ptr += 1
         
         if interactive: cv2.destroyAllWindows()
