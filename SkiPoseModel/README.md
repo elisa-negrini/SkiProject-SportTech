@@ -1,18 +1,15 @@
 # SkiPoseModel - Ski Reconstruction from Human Pose
 
-## Overview
 
-SkiPoseModel is a deep learning model designed to reconstruct ski positions from human skeletal data. Given a skier's body pose (23 body joints), the model predicts the positions of ski keypoints that are occluded or difficult to detect in video footage. This is achieved through a transformer-based architecture that learns to infer ski locations based on body joint positions.
+SkiPoseModel is a deep learning model designed to reconstruct ski positions from human skeletal data. Given a skier's body pose (15 body joints), the model predicts the positions of ski keypoints (8 in total). This is achieved through a transformer-based architecture that learns to infer ski locations based on body joint positions.
 
 ### Model Objective
 
-The core task is: **Given partial skeletal information (body joints with skis masked), predict the complete skeleton including ski joint positions.**
+The core task is: **Given 15 body joints (with skis masked), predict the ski joint positions.**
 
 ---
 
 ## Repository Structure
-
-### File Organization
 
 ```
 SkiPoseModel/
@@ -23,7 +20,7 @@ SkiPoseModel/
 ├── preprocess.py                # Data preprocessing pipeline (COCO JSON → pickle)
 ├── postprocess_visualize.py     # Visualization and post-processing of results
 ├── domainadapt_flags.py         # Configuration flags for all scripts
-├── dataset/                     # Raw dataset (COCO JSON annotations + frames)
+├── dataset/                     # Raw dataset (COCO JSON annotations)
 ├── dataset_preprocessed/        # Preprocessed datasets (train.pkl, val.pkl, test.pkl)
 ├── results/                     # Output predictions and visualizations
 └── requirements.txt             # Python dependencies
@@ -106,14 +103,11 @@ dataset_preprocessed/
 ## Training
 
 ### Start Training
+If you wish you can change the parameters in domainadapt_flags.py
 
 ```bash
 python main.py --mode=train \
-    --dataset_dir="./dataset_preprocessed" \
-    --checkpoint_dir="./checkpoints" \
-    --n_epochs=100 \
-    --batch_size=64 \
-    --lr=2e-4 
+    --n_epochs=100 
 ```
 
 ### Training Output
@@ -130,22 +124,11 @@ python main.py --mode=train \
 
 ```bash
 python main.py --mode=test \
-    --dataset_dir="./dataset_preprocessed" \
-    --load_checkpoint="./checkpoints/SKIJUMP_20240215_142530/last.ckpt" \
-    --batch_size=64
+    --load_checkpoint="path_of_the_most_recent_checkpoint" 
 ```
 
 **Output:**
 - `test_results.pkl` - Contains predictions and ground truth for analysis
-
-### Demo Mode
-
-Test on a single checkpoint without WandB logging:
-
-```bash
-python main.py --mode=demo \
-    --load_checkpoint="./checkpoints/SKIJUMP_20240215_142530/epoch=10-val_loss=0.0045.ckpt"
-```
 
 ---
 
@@ -168,7 +151,6 @@ This:
 - **Masking**: During training, ski joints are masked
 - **Loss Function**: MSE between predicted and ground truth masked joints
 - **Validation**: Loss computed only on ski joints (indices 19,20,21,22,12,13,14,15)
-- **Optimizer**: Adam with ReduceLROnPlateau scheduler
 
 ---
 
