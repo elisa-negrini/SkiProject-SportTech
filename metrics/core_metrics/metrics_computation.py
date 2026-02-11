@@ -45,7 +45,6 @@ class MetricsComputation:
             'body_ski_inclination': (0.0, 40.0),
             'knee_angle': (100.0, 180.0),
             'symmetry_index': (0.0, 30.0),
-            'telemark_leg_angle': (0.0, 90.0),
             'knee_velocity': (50.0, 800.0),
             'telemark_scissor': (0.0, 0.30),
             'landing_absorption': (-2.0, 2.0),
@@ -278,52 +277,11 @@ class MetricsComputation:
         p_ank_l = self.get_point(frame_row, 'l_ankle')
         
         offset_x = np.nan
-        proj_ski = np.nan
-        depth_ratio = np.nan
-        leg_angle = np.nan
         
         if p_ank_r is not None and p_ank_l is not None:
             offset_x = abs(p_ank_r[0] - p_ank_l[0])
         
-        p_tip_r = self.get_point(frame_row, 'r_ski_tip')
-        p_tail_r = self.get_point(frame_row, 'r_ski_tail')
-        p_tip_l = self.get_point(frame_row, 'l_ski_tip')
-        p_tail_l = self.get_point(frame_row, 'l_ski_tail')
-        
-        ski_dirs = []
-        if p_tip_r is not None and p_tail_r is not None:
-            ski_dirs.append(p_tip_r - p_tail_r)
-        if p_tip_l is not None and p_tail_l is not None:
-            ski_dirs.append(p_tip_l - p_tail_l)
-        
-        if ski_dirs and p_ank_r is not None and p_ank_l is not None:
-            avg_ski_vec = np.mean(ski_dirs, axis=0)
-            norm = np.linalg.norm(avg_ski_vec)
-            if norm > 0:
-                unit_ski_vec = avg_ski_vec / norm
-                vec_ankles = p_ank_r - p_ank_l
-                proj_ski = abs(np.dot(vec_ankles, unit_ski_vec))
-                
-                p_neck = self.get_point(frame_row, 'neck')
-                p_pelvis = self.get_point(frame_row, 'center_pelvis')
-                
-                if p_neck is not None and p_pelvis is not None:
-                    back_len_px = np.linalg.norm(p_neck - p_pelvis)
-                    if back_len_px > 0:
-                        depth_ratio = proj_ski / back_len_px
-        
-        p_hip_r = self.get_point(frame_row, 'r_hip')
-        p_knee_r = self.get_point(frame_row, 'r_knee')
-        p_hip_l = self.get_point(frame_row, 'l_hip')
-        p_knee_l = self.get_point(frame_row, 'l_knee')
-        
-        if all(x is not None for x in [p_hip_r, p_knee_r, p_hip_l, p_knee_l]):
-            vec_femur_r = p_knee_r - p_hip_r
-            vec_femur_l = p_knee_l - p_hip_l
-            leg_angle = self.calculate_vector_angle(vec_femur_r, vec_femur_l)
-            leg_angle = self.apply_validity_range(leg_angle, 'telemark_leg_angle')
-        
-        return offset_x, proj_ski, depth_ratio, leg_angle
+        return offset_x
     
     def compute_takeoff_knee_angle(self, frame_row) -> float:
         """Calculate knee angle at takeoff."""
@@ -538,9 +496,6 @@ class MetricsComputation:
                     'body_ski_angle': np.nan,
                     'symmetry_index_back': np.nan,
                     'telemark_offset_x_raw': np.nan,
-                    'telemark_proj_ski_raw': np.nan,
-                    'telemark_depth_back_ratio': np.nan,
-                    'telemark_leg_angle': np.nan,
                     'is_flight_phase': 0,
                     'is_landing_phase': 0
                 }
@@ -565,11 +520,8 @@ class MetricsComputation:
                 
                 if tele_window and tele_window[0] <= f_idx <= tele_window[1]:
                     res['is_landing_phase'] = 1
-                    offset_x, proj_ski, depth_ratio, leg_angle = self.compute_telemark_metrics(frame_row)
+                    offset_x = self.compute_telemark_metrics(frame_row)
                     res['telemark_offset_x_raw'] = offset_x
-                    res['telemark_proj_ski_raw'] = proj_ski
-                    res['telemark_depth_back_ratio'] = depth_ratio
-                    res['telemark_leg_angle'] = leg_angle
                 
                 takeoff_frame = phase_row.get('take_off_frame')
                 if pd.notna(takeoff_frame) and f_idx == int(takeoff_frame):
@@ -580,11 +532,8 @@ class MetricsComputation:
                     res['v_style_angle_back'],
                     res['body_ski_angle'],
                     res.get('telemark_offset_x_raw'),
-                    res.get('telemark_proj_ski_raw'),
-                    res.get('telemark_depth_back_ratio'),
                     res.get('takeoff_knee_angle'),
-                    res.get('symmetry_index_back'),
-                    res.get('telemark_leg_angle')
+                    res.get('symmetry_index_back')
                 ]
                 
                 if any(pd.notna(x) for x in metrics_found):
@@ -645,11 +594,7 @@ class MetricsComputation:
             row['takeoff_knee_angle'] = group['takeoff_knee_angle'].mean()
             row['avg_body_ski_angle'] = group['body_ski_angle'].mean()
             row['avg_symmetry_index_back'] = group['symmetry_index_back'].mean()
-            
-            row['avg_telemark_proj_ski'] = group['telemark_proj_ski_raw'].mean()
-            row['avg_telemark_depth_ratio'] = group['telemark_depth_back_ratio'].mean()
-            row['avg_telemark_leg_angle'] = group['telemark_leg_angle'].mean()
-            
+
             summary_rows.append(row)
         
         return pd.DataFrame(summary_rows)

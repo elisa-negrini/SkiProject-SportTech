@@ -165,8 +165,7 @@ class TimeSeriesMetricsCalculator:
         
         if len(window_angles) < 3:
             return {
-                'knee_peak_velocity': np.nan,
-                'knee_angle_at_takeoff': np.nan
+                'knee_peak_velocity': np.nan
             }
         
         angles_array = window_angles.values
@@ -185,14 +184,8 @@ class TimeSeriesMetricsCalculator:
         
         peak_velocity = np.nanmax(velocity_per_sec)
         
-        takeoff_angle = np.nan
-        if takeoff_frame in window_angles.index:
-            takeoff_angle = window_angles[takeoff_frame]
-        
-        
         return {
-            'knee_peak_velocity': peak_velocity,
-            'knee_angle_at_takeoff': takeoff_angle
+            'knee_peak_velocity': peak_velocity
         }
     
     # METRIC 2: FLIGHT FROZENNESS (Stability during flight)   
@@ -343,8 +336,7 @@ class TimeSeriesMetricsCalculator:
             result.update(knee_metrics)
         else:
             result.update({
-                'knee_peak_velocity': np.nan,
-                'knee_angle_at_takeoff': np.nan
+                'knee_peak_velocity': np.nan
             })
         
         bsa_start = phase_row.get('bsa_start')
