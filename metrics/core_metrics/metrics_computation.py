@@ -271,17 +271,32 @@ class MetricsComputation:
         
         return np.nan
     
-    def compute_telemark_metrics(self, frame_row) -> Tuple[float, float, float, float]:
+    def compute_telemark_metrics(self, frame_row) -> Tuple[float, float]:
         """Calculate telemark landing metrics."""
         p_ank_r = self.get_point(frame_row, 'r_ankle')
         p_ank_l = self.get_point(frame_row, 'l_ankle')
+        p_hip_r = self.get_point(frame_row, 'r_hip')
+        p_hip_l = self.get_point(frame_row, 'l_hip')
         
         offset_x = np.nan
+        scissor_ratio = np.nan
         
         if p_ank_r is not None and p_ank_l is not None:
+            # Distanza X (metrica già esistente)
             offset_x = abs(p_ank_r[0] - p_ank_l[0])
+            
+            # Calcolo scissor ratio normalizzato (NUOVO)
+            if p_hip_r is not None and p_hip_l is not None:
+                ankle_y_diff = abs(p_ank_r[1] - p_ank_l[1])
+                avg_hip_y = (p_hip_r[1] + p_hip_l[1]) / 2.0
+                avg_ankle_y = (p_ank_r[1] + p_ank_l[1]) / 2.0
+                hip_height = abs(avg_hip_y - avg_ankle_y)
+                
+                if hip_height > 0.01:  # Evita divisione per zero
+                    scissor_ratio = ankle_y_diff / hip_height
+                    scissor_ratio = self.apply_validity_range(scissor_ratio, 'telemark_scissor')
         
-        return offset_x
+        return offset_x, scissor_ratio
     
     def compute_takeoff_knee_angle(self, frame_row) -> float:
         """Calculate knee angle at takeoff."""
@@ -496,6 +511,7 @@ class MetricsComputation:
                     'body_ski_angle': np.nan,
                     'symmetry_index_back': np.nan,
                     'telemark_offset_x_raw': np.nan,
+                    'telemark_scissor_ratio': np.nan,
                     'is_flight_phase': 0,
                     'is_landing_phase': 0
                 }
@@ -520,8 +536,9 @@ class MetricsComputation:
                 
                 if tele_window and tele_window[0] <= f_idx <= tele_window[1]:
                     res['is_landing_phase'] = 1
-                    offset_x = self.compute_telemark_metrics(frame_row)
+                    offset_x, scissor_ratio = self.compute_telemark_metrics(frame_row)
                     res['telemark_offset_x_raw'] = offset_x
+                    res['telemark_scissor_ratio'] = scissor_ratio
                 
                 takeoff_frame = phase_row.get('take_off_frame')
                 if pd.notna(takeoff_frame) and f_idx == int(takeoff_frame):
@@ -532,6 +549,7 @@ class MetricsComputation:
                     res['v_style_angle_back'],
                     res['body_ski_angle'],
                     res.get('telemark_offset_x_raw'),
+                    res.get('telemark_scissor_ratio'),
                     res.get('takeoff_knee_angle'),
                     res.get('symmetry_index_back')
                 ]

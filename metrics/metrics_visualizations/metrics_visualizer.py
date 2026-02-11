@@ -10,7 +10,7 @@ class MetricsVisualizer:
         self.root = Path(__file__).parent.parent.parent
         
         self.metrics_path = self.root / metrics_file
-        self.summary_metrics_path = self.root / 'metrics' / 'core_metrics' / 'timeseries_metrics' / 'timeseries_summary.csv'
+        self.summary_metrics_path = self.root / 'metrics' / 'core_metrics' / 'metrics_summary_per_jump.csv'
         self.phases_path = self.root / 'dataset' / 'jump_phases_SkiTB.csv'
         
         if not self.phases_path.exists():
@@ -55,6 +55,13 @@ class MetricsVisualizer:
             
             if (has_front or has_back) and 'v_style_angle' not in available:
                 available.append('v_style_angle')
+            
+            # Check for telemark_scissor: use telemark_scissor_ratio column or landing phase
+            has_scissor_ratio = 'telemark_scissor_ratio' in df_jump.columns and df_jump['telemark_scissor_ratio'].notna().any()
+            has_landing_phase = 'is_landing_phase' in df_jump.columns and (df_jump['is_landing_phase'] == 1).any()
+            
+            if (has_scissor_ratio or has_landing_phase) and 'telemark_scissor' not in available:
+                available.append('telemark_scissor')
         
         if self.summary_metrics_path.exists():
             try:
@@ -380,40 +387,123 @@ class MetricsVisualizer:
         cv2.ellipse(overlay, tuple(center.astype(int)), (radius, radius), 0, start_draw, end_draw, color_fill, -1)
         cv2.addWeighted(overlay, 0.5, img, 0.5, 0, img)
 
-    def draw_telemark(self, img, offset, keypoints, kpt_names, metric_val, f_idx, scale=1.0):
-        ank_r = self.get_kpt_pos(keypoints, 'r_ankle', kpt_names)
-        ank_l = self.get_kpt_pos(keypoints, 'l_ankle', kpt_names)
-        tips = [self.get_kpt_pos(keypoints, s+'ski_tip', kpt_names) for s in ['r_', 'l_']]
-        tails = [self.get_kpt_pos(keypoints, s+'ski_tail', kpt_names) for s in ['r_', 'l_']]
+    def draw_telemark_scissor(self, img, offset, keypoints, kpt_names, f_idx, scale=1.0):
+        """Visualize telemark scissor: vertical offset between ankles (normalized by leg height).
         
-        tips = [(p - offset) * scale for p in tips if p is not None]
-        tails = [(p - offset) * scale for p in tails if p is not None]
+        Scissor formula:
+        - ankle_y_diff = |ankle_r.y - ankle_l.y|  (vertical pixel distance)
+        - leg_height = |avg_hip.y - avg_ankle.y|  (leg length in pixels)
+        - scissor_ratio = ankle_y_diff / leg_height  (0.0 to ~0.30)
+        
+        Draws full leg skeleton (hip→knee→ankle) with vertical offset line between ankles.
+        Color: forward leg (lower ankle) = green, back leg (higher ankle) = orange.
+        """
+        # --- Get keypoints ---
+        p_hip_r = self.get_kpt_pos(keypoints, 'r_hip', kpt_names)
+        p_hip_l = self.get_kpt_pos(keypoints, 'l_hip', kpt_names)
+        p_knee_r = self.get_kpt_pos(keypoints, 'r_knee', kpt_names)
+        p_knee_l = self.get_kpt_pos(keypoints, 'l_knee', kpt_names)
+        p_ankle_r = self.get_kpt_pos(keypoints, 'r_ankle', kpt_names)
+        p_ankle_l = self.get_kpt_pos(keypoints, 'l_ankle', kpt_names)
 
-        if ank_r is not None and ank_l is not None:
-            ank_r = (ank_r - offset) * scale
-            ank_l = (ank_l - offset) * scale
-            if tips and tails:
-                overlay = img.copy()
-                avg_tip = np.mean(tips, axis=0).astype(int)
-                avg_tail = np.mean(tails, axis=0).astype(int)
-                cv2.line(overlay, tuple(avg_tip), tuple(avg_tail), (0, 0, 255), 4) 
-                cv2.addWeighted(overlay, 0.4, img, 0.6, 0, img)
-            ar, al = ank_r.astype(int), ank_l.astype(int)
-            cv2.circle(img, tuple(ar), 6, (0, 255, 255), -1) 
-            cv2.circle(img, tuple(al), 6, (0, 255, 255), -1)
-            cv2.line(img, tuple(ar), tuple(al), (0, 255, 255), 1)
-            h, w = img.shape[:2]
-            bar_w, bar_h = 15, int(h * 0.4)
-            x_start, y_start = w - bar_w - 10, int((h - bar_h) / 2)
-            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_start + bar_h), (50, 50, 50), -1)
-            max_val = 0.8
-            fill_ratio = min(metric_val / max_val, 1.0)
-            fill_h = int(bar_h * fill_ratio)
-            color_bar = (0, 0, 255) 
-            if fill_ratio > 0.4: color_bar = (0, 255, 255)
-            if fill_ratio > 0.7: color_bar = (0, 255, 0)
-            cv2.rectangle(img, (x_start, y_start + bar_h - fill_h), (x_start + bar_w, y_start + bar_h), color_bar, -1)
-            cv2.rectangle(img, (x_start, y_start), (x_start + bar_w, y_start + bar_h), (200, 200, 200), 1)
+        # Transform to crop coordinates
+        def to_crop(p):
+            return (p - offset) * scale if p is not None else None
+
+        hip_r = to_crop(p_hip_r)
+        hip_l = to_crop(p_hip_l)
+        knee_r = to_crop(p_knee_r)
+        knee_l = to_crop(p_knee_l)
+        ankle_r = to_crop(p_ankle_r)
+        ankle_l = to_crop(p_ankle_l)
+
+        # Need all keypoints for proper calculation
+        if any(p is None for p in [hip_r, hip_l, knee_r, knee_l, ankle_r, ankle_l]):
+            # Draw warning
+            cv2.putText(img, "Missing keypoints for scissor calculation", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+            return img
+
+        # --- Calculate scissor_mean (frame-by-frame) ---
+        ankle_y_diff = abs(ankle_r[1] - ankle_l[1])  # Vertical distance between ankles
+        
+        avg_hip_y = (hip_r[1] + hip_l[1]) / 2.0
+        avg_ankle_y = (ankle_r[1] + ankle_l[1]) / 2.0
+        leg_height = abs(avg_hip_y - avg_ankle_y)  # Leg length
+        
+        if leg_height < 10:  # Too small, invalid
+            scissor_ratio = 0.0
+        else:
+            scissor_ratio = ankle_y_diff / leg_height
+        
+        # Clamp to valid range (0.0 to 0.50 max shown)
+        scissor_ratio = np.clip(scissor_ratio, 0.0, 0.50)
+
+        # --- Colors: Purple = Right leg, Orange = Left leg (fixed) ---
+        color_r = (226, 43, 138)   # Purple (BGR) - right leg
+        color_l = (0, 165, 255)    # Orange (BGR) - left leg
+
+        # --- Draw leg skeletons ---
+        # Right leg (purple)
+        cv2.line(img, tuple(hip_r.astype(int)), tuple(knee_r.astype(int)), color_r, 4, cv2.LINE_AA)
+        cv2.line(img, tuple(knee_r.astype(int)), tuple(ankle_r.astype(int)), color_r, 4, cv2.LINE_AA)
+        
+        # Left leg (orange)
+        cv2.line(img, tuple(hip_l.astype(int)), tuple(knee_l.astype(int)), color_l, 4, cv2.LINE_AA)
+        cv2.line(img, tuple(knee_l.astype(int)), tuple(ankle_l.astype(int)), color_l, 4, cv2.LINE_AA)
+
+        # --- Draw keypoint circles ---
+        for pt, color in [(hip_r, color_r), (hip_l, color_l), 
+                          (knee_r, color_r), (knee_l, color_l),
+                          (ankle_r, color_r), (ankle_l, color_l)]:
+            cv2.circle(img, tuple(pt.astype(int)), 6, color, -1, cv2.LINE_AA)
+            cv2.circle(img, tuple(pt.astype(int)), 6, (255, 255, 255), 2, cv2.LINE_AA)
+
+        # --- Draw vertical offset line between ankles (dashed) ---
+        # Line connects the two ankles horizontally at the X position between them
+        mid_ankle_x = int((ankle_r[0] + ankle_l[0]) / 2)
+        ankle_lower_y = int(min(ankle_r[1], ankle_l[1]))
+        ankle_higher_y = int(max(ankle_r[1], ankle_l[1]))
+        
+        # Draw vertical dashed line showing the offset
+        self.draw_dashed_line(img, 
+                              np.array([mid_ankle_x, ankle_lower_y]), 
+                              np.array([mid_ankle_x, ankle_higher_y]),
+                              (255, 255, 0), 2, dash_len=8)  # Cyan dashed line
+        
+        # Draw horizontal lines at each ankle to show levels
+        line_len = 30
+        cv2.line(img, (mid_ankle_x - line_len, ankle_lower_y), 
+                 (mid_ankle_x + line_len, ankle_lower_y), (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.line(img, (mid_ankle_x - line_len, ankle_higher_y), 
+                 (mid_ankle_x + line_len, ankle_higher_y), (255, 255, 0), 2, cv2.LINE_AA)
+
+        # --- Display metric value ---
+        h_img, w_img = img.shape[:2]
+        
+        # Main value (ratio) - larger with outline
+        label_main = f"Scissor Ratio: {scissor_ratio:.3f}"
+        cv2.putText(img, label_main, (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv2.LINE_AA)
+        cv2.putText(img, label_main, (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2, cv2.LINE_AA)
+        
+        # Percentage - clearer formatting
+        percentage = scissor_ratio * 100
+        label_pct = f"= {percentage:.1f}% of leg height"
+        cv2.putText(img, label_pct, (10, 75),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+        
+        # Frame number - larger and clearer, top right
+        frame_label = f"Frame: {f_idx}"
+        # Get text size for right alignment
+        (text_w, text_h), _ = cv2.getTextSize(frame_label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        frame_x = w_img - text_w - 15
+        cv2.putText(img, frame_label, (frame_x, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.putText(img, frame_label, (frame_x, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+
         return img
     
     def smart_resize(self, img, min_side=600):
@@ -442,30 +532,49 @@ class MetricsVisualizer:
         cat_with_kpts = next((c for c in coco.get('categories', []) if 'keypoints' in c), None)
         if cat_with_kpts: kpt_names = cat_with_kpts['keypoints']
         else: return
-        
-        # --- LOGICA SELEZIONE DATAFRAME (INVARIATA) ---
+                # Initialize telemark_scissor value (used only for telemark_scissor metric)
+        telemark_summary_val = 0.0
+                # --- LOGICA SELEZIONE DATAFRAME ---
         if metric_name == 'v_style_angle':
             mask = self.df['v_style_angle_front'].notna() | self.df['v_style_angle_back'].notna()
             df_view = self.df[(self.df['jump_id'] == sel_jump) & mask].copy()
-            
-        elif 'landing_knee_compression' in metric_name:
+
+        elif metric_name == 'telemark_scissor':
+            # Show 20-30 frames AFTER landing (athlete is in the air before)
             landing_frame = None
-            if self.phases_path is not None:
+            if self.phases_path is not None and self.phases_path.exists():
                 df_phases = pd.read_csv(self.phases_path)
                 df_phases['jump_id'] = df_phases['jump_id'].apply(self._normalize_jid)
                 row = df_phases[df_phases['jump_id'] == sel_jump]
-                
-                if not row.empty and pd.notna(row.iloc[0]['landing']):
+                if not row.empty and pd.notna(row.iloc[0].get('landing')):
                     landing_frame = int(row.iloc[0]['landing'])
 
             if landing_frame is not None:
                 start_f = landing_frame
-                end_f = landing_frame + 25
-                wanted_frames = list(range(start_f, end_f + 1))
-                df_view = pd.DataFrame({'frame_idx': wanted_frames, 'jump_id': sel_jump})
+                end_f = landing_frame + 30
+                df_view = self.df[(self.df['jump_id'] == sel_jump) & 
+                                  (self.df['frame_idx'] >= start_f) & 
+                                  (self.df['frame_idx'] <= end_f)].copy()
             else:
-                print(f"⚠️ Landing frame not found for {sel_jump}, showing all frames.")
-                df_view = self.df[self.df['jump_id'] == sel_jump].copy()
+                # Fallback: use landing phase flag
+                df_view = self.df[(self.df['jump_id'] == sel_jump) & 
+                                  (self.df['is_landing_phase'] == 1)].copy()
+
+            # Read the summary value (one per jump) from metrics_summary_per_jump.csv
+            telemark_summary_val = 0.0
+            summary_path = self.summary_metrics_path
+            if summary_path is not None and summary_path.exists():
+                try:
+                    df_summ = pd.read_csv(summary_path)
+                    df_summ['jump_id'] = df_summ['jump_id'].apply(self._normalize_jid)
+                    s_row = df_summ[df_summ['jump_id'] == sel_jump]
+                    if not s_row.empty and 'telemark_scissor_mean' in df_summ.columns:
+                        v = s_row.iloc[0]['telemark_scissor_mean']
+                        if pd.notna(v):
+                            telemark_summary_val = float(v)
+                except Exception as e:
+                    print(f"⚠️ Could not read telemark_scissor_mean from summary: {e}")
+
         else:
             df_view = self.df[(self.df['jump_id'] == sel_jump) & (self.df[metric_name].notna())].copy()
             
@@ -476,7 +585,7 @@ class MetricsVisualizer:
             return
 
         print(f" -> Processing {sel_jump}: {len(df_view)} frames...")
-        
+
         # --- COSTRUZIONE MAPPE ---
         ann_map = {a['image_id']: a for a in coco['annotations']}
         img_map = {img['file_name']: img['id'] for img in coco['images']}
@@ -497,18 +606,10 @@ class MetricsVisualizer:
             row = df_view.loc[indices[curr_ptr]]
             f_idx = int(row['frame_idx'])
             
-            # --- RECUPERO VALORE METRICA (INVARIATO) ---
+            # --- RECUPERO VALORE METRICA ---
             val = 0.0
             view_str = ""
-            if 'landing_knee_compression' in metric_name:
-                if self.summary_metrics_path.exists():
-                    try:
-                        df_ts = pd.read_csv(self.summary_metrics_path)
-                        jump_data = df_ts[df_ts['jump_id'] == sel_jump]
-                        if not jump_data.empty:
-                            val = jump_data[metric_name].values[0]
-                    except: val = 0.0
-            elif metric_name == 'v_style_angle':
+            if metric_name == 'v_style_angle':
                 if pd.notna(row.get('v_style_angle_front')):
                     val = row['v_style_angle_front']; view_str = "FRONT"
                 elif pd.notna(row.get('v_style_angle_back')):
@@ -566,10 +667,9 @@ class MetricsVisualizer:
                     crop_img = self.draw_body_ski(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
                 elif 'takeoff_knee' in metric_name:
                     crop_img = self.draw_takeoff_knee(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
-                elif 'landing_knee_compression' in metric_name:
-                    crop_img = self.draw_knee_compression(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
-                elif 'telemark_depth' in metric_name: 
-                    crop_img = self.draw_telemark(crop_img, offset, kpts, kpt_names, val, f_idx, scale=scale_factor)
+                elif metric_name == 'telemark_scissor':
+                    crop_img = self.draw_telemark_scissor(crop_img, offset, kpts, kpt_names, f_idx,
+                                                          scale=scale_factor)
 
                 save_path = save_dir / f"viz_{f_idx:05d}.jpg"
                 cv2.imwrite(str(save_path), crop_img)
@@ -604,8 +704,7 @@ class MetricsVisualizer:
             'symmetry_index_back', 
             'body_ski_angle', 
             'takeoff_knee_angle',
-            'landing_knee_compression',
-            'telemark_depth_back_ratio'
+            'telemark_scissor'
         ]
 
         if mode == '1':
