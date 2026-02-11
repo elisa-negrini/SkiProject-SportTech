@@ -26,8 +26,8 @@ WHY THESE 3 FEATURES:
 - They are interpretable for coaches
 
 Output:
-- models/style_penalty_predictions.csv
-- models/STYLE_PENALTY_FORMULA.txt
+- style_penalty_predictions.csv
+- STYLE_PENALTY_FORMULA.txt
 """
 
 import pandas as pd
@@ -43,7 +43,7 @@ warnings.filterwarnings('ignore')
 
 class StylePenaltyModel:
     
-    # Manual feature selection - these are the 3 key features
+
     MANUAL_FEATURES = {
         'flight_std': {
             'name': 'Flight Stability',

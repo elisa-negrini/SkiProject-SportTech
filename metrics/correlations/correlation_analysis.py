@@ -210,7 +210,7 @@ class CorrelationAnalyzer:
         print("[*] GENERATING SUMMARY REPORT")
         
         with open(self.output_summary, 'w', encoding='utf-8') as f:
-            f.write("INTELLIGENT CORRELATION ANALYSIS - SUMMARY REPORT\n")
+            f.write("SUMMARY REPORT\n")
             
             f.write(f"Total correlations computed: {len(df_corr)}\n")
             f.write(f"Significant correlations (p<0.05): {df_corr['significant_p05'].sum()}\n\n")
@@ -243,7 +243,7 @@ class CorrelationAnalyzer:
     def run_analysis(self):
         
         print("\n\n")
-        print("INTELLIGENT CORRELATION ANALYSIS")
+        print("CORRELATION ANALYSIS")
         print("Ski Jumping Performance Metrics")
         
         if not self.load_data():
@@ -262,7 +262,7 @@ class CorrelationAnalyzer:
         print(f"    1. {self.output_merged.name}")
         print(f"    2. {self.output_correlations.name}")
         print(f"    3. {self.output_summary.name}")
-        print("\n[*] Next: Run intelligent_visualizations.py\n")
+        print("\n[*] Next: Run correlation_visualizations.py\n")
         
         return True
 
