@@ -6,19 +6,15 @@
 
 </td><td>
 
-<img width="220" alt="skeleton" src="https://github.com/user-attachments/assets/dd336d0f-baa0-465f-98ce-3f10ff7773e0" />
+<img width="180" alt="skeleton" src="https://github.com/user-attachments/assets/c14c406a-e22b-4243-acca-e247e0a995a9" />
 
 </td></tr></table>
 
----
-
-## 📖 Project Overview
-
-This project develops an end-to-end system for **2D metrics extraction from ski jumper skeletons (+ skis)**, starting from raw competition footage from the [Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/).
+This project develops an end-to-end system for **2D metrics extraction from ski jumper skeletons (+ skis)**, starting from raw competition footage from the [Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/).
 
 The main objectives are:
 
-1. **Annotate a custom ski jumping dataset** — manually label a 23-keypoint skeleton (body + skis) on competition videos and enrich them through interpolation and normalization.
+1. **Annotate a custom ski jumping dataset** — manually label a 23-keypoint skeleton (body + skis) on competition videos.
 2. **Extract biomechanical metrics** — compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores.
 3. **Train a Ski Pose Estimation model** — use a transformer-based deep learning model to predict ski positions given only the body skeleton.
 
@@ -30,37 +26,37 @@ The main objectives are:
 
 ---
 
-## Objective 1 — Dataset Annotation
 
-### Overview
 
-We annotated **32 ski jumps** from the [Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/) using a custom **23-keypoint skeleton model** (17 body joints + 6 ski keypoints). All annotations were created with **[Roboflow](https://roboflow.com/)**.
+## Objective 1 — Dataset Annotation <img src="https://github.com/user-attachments/assets/cce73566-6d18-4dfe-ada0-f013f580c3bc" width="20" alt="roboflow logo" />
+
+
+<img width="150" height="200" alt="skeleton" src="https://github.com/user-attachments/assets/3766cb99-825d-42bd-abe5-a2bd0b92ece8" align="right" />
+
+We annotated **32 ski jumps** from the [Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/) using a custom **23-keypoint skeleton model** (15 body joints + 8 ski keypoints). All annotations were created with **[Roboflow](https://roboflow.com/)**.
 
 <!-- 📸 Add skeleton diagram + Roboflow logo here -->
 <!-- ![23-Keypoint Skeleton](docs/images/skeleton_model.png) -->
 <!-- ![Roboflow Logo](docs/images/roboflow_logo.png) -->
+
+
 
 ### Annotation Pipeline
 
 Each jump video contains approximately **350 frames**. Out of these, around **60 key frames** are manually annotated in Roboflow in COCO format. The remaining frames are then completed through the following automated pipeline:
 
 1. **Extract** — parse jump-specific annotations from the exported COCO file.
-2. **Filter** — validate and filter bounding boxes, removing erroneous detections.
-3. **Interpolate** — linearly interpolate keypoints between annotated frames to obtain annotations for all ~350 frames.
-4. **Normalize** — normalize keypoint coordinates relative to the bounding box, making them resolution- and position-independent for downstream metric computation.
-5. **Visualize** — generate annotated images and overlay videos for quality inspection.
+2. **Interpolate** — linearly interpolate keypoints between annotated frames to obtain annotations for all ~350 frames.
+3. **Normalize** — normalize keypoint coordinates relative to the bounding box, making them resolution- and position-independent for downstream metric computation.
+4. **Visualize** — generate annotated images and overlay videos for quality inspection.
 
 ### Folder Structure & Output
 
 ```
 annotation_preprocessing/
-├── main.py                        # Master workflow orchestrator
-└── utils/
-    ├── annotation_manager.py      # Extract jump-specific annotations from COCO file
-    ├── box_filter.py              # Filter and validate bounding boxes
-    ├── interpolator.py            # Linear interpolation between annotated frames
-    ├── normalizer.py              # Normalize keypoints to bounding box coordinates
-    └── visualizer.py              # Generate annotated images and videos
+├── main.py                        # Workflow orchestrator
+├── raw_annotations/               # Input COCO annotations from Roboflow
+└── utils/                         # Function classes used for annotation pipeline
 ```
 
 The annotation pipeline outputs data into the `dataset/` folder:
@@ -76,11 +72,37 @@ dataset/
 
 ---
 
-## 📐 Objective 2 — Biomechanical Metrics
+##  Objective 2 — Biomechanical Metrics
 
-### Overview
 
 Starting from the annotated and normalized keypoints, we computed a set of **2D biomechanical metrics** to quantitatively describe each jump. These metrics account for the inherent limitations of a 2D perspective (e.g., foreshortening, camera angle variability) by favoring dynamic measures (velocities, standard deviations) over static absolute angles where possible.
+
+### Key Metrics
+
+| Category | Metrics | Description |
+|----------|---------|-------------|
+| **V-Style** | `avg_v_style_front`, `avg_v_style_back` | Ski opening angle from front and back views |
+| **Body-Ski Angle** | `avg_body_ski_angle` | Inclination between body axis and ski axis during flight |
+| **Take-off** | `takeoff_knee_angle`, `knee_peak_velocity` | Knee extension angle and explosive velocity at jump |
+| **Flight Stability** | `flight_std`, `flight_jitter` | Variability and micro-instability of body-ski angle |
+| **Landing** | `landing_hip_velocity`, `landing_knee_compression`, `telemark_offset` | Landing softness and telemark quality |
+
+### Metric Visualizations
+
+<table border="0">
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/e7de4198-a349-4cc4-ad77-8417c19274e9" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/979ac743-5b81-496f-addb-45aa4e77a31b" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/d5df2001-f4b6-431c-bb9f-784d43e4ef5d" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Take Off knee angle</b></td>
+    <td align="center"><b>Body Ski Angle</b></td>
+    <td align="center"><b>V style Angle</b></td>
+    <td align="center"><b>Symmetry Index</b></td>
+  </tr>
+</table>
 
 ### Folder Structure
 
@@ -100,23 +122,6 @@ metrics/
 └── style_penalty_model/           # ML model predicting style penalties
 ```
 
-### Key Metrics
-
-| Category | Metrics | Description |
-|----------|---------|-------------|
-| **V-Style** | `avg_v_style_front`, `avg_v_style_back` | Ski opening angle from front and back views |
-| **Body-Ski Angle** | `avg_body_ski_angle` | Inclination between body axis and ski axis during flight |
-| **Take-off** | `takeoff_knee_angle`, `knee_peak_velocity` | Knee extension angle and explosive velocity at jump |
-| **Flight Stability** | `flight_std`, `flight_jitter` | Variability and micro-instability of body-ski angle |
-| **Landing** | `landing_hip_velocity`, `landing_knee_compression`, `telemark_offset` | Landing softness and telemark quality |
-
-### Metric Visualizations
-
-<!-- 📸 Add metric visualization images here, one for each -->
-<!-- ![V-Style Front Angle](docs/images/v_style_front.png) -->
-<!-- ![V-Style Back Angle](docs/images/v_style_back.png) -->
-<!-- ![Body-Ski Angle](docs/images/body_ski_angle.png) -->
-
 ### ⚠️ Disclaimer on Results
 
 We are aware that some of the results obtained from the metrics and correlation analyses are **not all statistically significant**, for two main reasons:
@@ -126,13 +131,26 @@ We are aware that some of the results obtained from the metrics and correlation 
 
 ---
 
-## 🤖 Objective 3 — Ski Pose Estimation Model
+##  Objective 3 — Ski Pose Estimation Model
 
-### Overview
 
-The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [this paper](https://github.com/kaulquappe23/ski-pose-prediction). Its goal is to **predict the position of the 6 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
+The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [Ski Pose Estimation paper](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10635966&casa_token=ubQtkCGjylwAAAAA:BqQcSimZXVc4v0CQd73N5M5WocdADPdmWoYALUHBNLVUCStoaP3Lljc3aWbkBNXplPMHIzJ7https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10635966&casa_token=ubQtkCGjylwAAAAA:BqQcSimZXVc4v0CQd73N5M5WocdADPdmWoYALUHBNLVUCStoaP3Lljc3aWbkBNXplPMHIzJ7). Its goal is to **predict the position of the 8 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
 
 We adapted the model to our custom 23-keypoint dataset and trained it on a total of 11,042 samples (7,729 train, 1,656 validation, 1,657 test).
+
+
+### Prediction & Post-Processing
+
+The model predicts the 8 ski keypoints (4 per ski). After inference, a **PCA-based linearization** step is applied to force the predicted ski points onto a straight line, producing more physically plausible results. Here are some visualizations of the results.
+<table border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/fdbc37a1-48df-4754-ac4a-919e245e46ae" width="100%" alt="test_0005"></td>
+    <td><img src="https://github.com/user-attachments/assets/dfa237a2-e2e8-4446-bc5e-a9a290fe165f" width="100%" alt="test_0068"></td>
+    <td><img src="https://github.com/user-attachments/assets/9541719f-b34d-4d69-8ffc-5103d63c8f66" width="100%" alt="test_0093"></td>
+    <td><img src="https://github.com/user-attachments/assets/9c0caa91-4dfe-49d5-80ae-685d5417a9aa" width="100%" alt="test_0037"></td>
+  </tr>
+ 
+</table>
 
 ### Folder Structure
 
@@ -146,7 +164,7 @@ SkiPoseModel/
 ├── postprocess_visualize.py     # Visualization & ski linearization
 ├── domainadapt_flags.py         # Configuration flags
 ├── requirements.txt             # Model-specific dependencies
-├── dataset/                     # Raw dataset (COCO JSON + frames)
+├── dataset/                     # Raw dataset (COCO JSON)
 ├── dataset_preprocessed/        # Preprocessed splits (train.pkl, val.pkl, test.pkl)
 └── results/                     # Predictions, checkpoints, visualizations
     ├── checkpoints/             # Saved model weights
@@ -154,16 +172,9 @@ SkiPoseModel/
     └── test_results_linearized.pkl  # Post-processed (linearized skis)
 ```
 
-### Prediction & Post-Processing
-
-The model predicts the 6 ski keypoints (3 per ski: binding, tail, tip). After inference, a **PCA-based linearization** step is applied to force the predicted ski points onto a straight line, producing more physically plausible results.
-
-<!-- 📸 Add 4-5 side-by-side images of GT skeleton vs. predicted skeleton here -->
-<!-- ![Prediction Examples](docs/images/skiposemodel_predictions.png) -->
-
 ---
 
-## 🚀 Installation & Setup
+##  Installation & Setup
 
 ### Prerequisites
 
@@ -174,7 +185,7 @@ The model predicts the 6 ski keypoints (3 per ski: binding, tail, tip). After in
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/SkiProject-SportTech.git
+git clone https://github.com/elisa-negrini/SkiProject-SportTech.git
 cd SkiProject-SportTech
 
 # 2. Create virtual environment
@@ -189,9 +200,28 @@ source sport_tech_env/bin/activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Verify setup
-python -c "import torch; print('PyTorch:', torch.__version__)"
 ```
+
+---
+## 💾 Dataset & Checkpoints Download
+
+> ⚠️ **Note**: The dataset and model checkpoints are not included in the repository due to size constraints.
+
+Downdload the content of this [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link)
+
+**After downloading, place files as follows:**
+```
+SkiProject-SportTech/
+├── dataset/
+│   ├── frames/           ← Extract frames here
+│   ├── annotations/      ← Extract annotations here
+│   └── *.csv             ← Place CSV files here
+│
+└── SkiPoseModel/
+    └── results/
+        └── checkpoints/  ← Place model checkpoints here
+```
+
 
 ---
 
@@ -199,13 +229,13 @@ python -c "import torch; print('PyTorch:', torch.__version__)"
 
 ### 1. Annotation Preprocessing
 
-Place your Roboflow COCO export inside `annotation_preprocessing/raw_annotations/`, then run:
+If you have new annotations on Roboflow (following our skeleton scheme), export the COCO file and replace the content of `annotation_preprocessing/raw_annotations/`, then run:
 
 ```bash
 python annotation_preprocessing/main.py
 ```
 
-This will extract, filter, interpolate, normalize, and visualize the annotations. Output is saved to the `dataset/` folder.
+This will extract, filter, interpolate, normalize, and visualize the annotations. Output is saved to the `dataset/` folder, as described above.
 
 ### 2. SkiPoseModel (GPU Required)
 
@@ -221,7 +251,7 @@ python preprocess.py
 python main.py --mode train
 
 # Test the model
-python main.py --mode test
+python main.py --mode test --load_checkpont "enter_the_checkpoint_path"
 
 # Post-process & visualize predictions (ski linearization)
 python postprocess_visualize.py
@@ -265,29 +295,6 @@ streamlit run dashboard/Dashboard.py
 
 ---
 
-## 💾 Dataset & Checkpoints Download
-
-> ⚠️ **Note**: The dataset and model checkpoints are not included in the repository due to size constraints.
-
-| Resource | Link | Size | Description |
-|----------|------|------|-------------|
-| **Full Dataset** | *Google Drive link here* | ~X GB | Frames, annotations, metadata |
-| **Model Checkpoints** | *Google Drive link here* | ~X MB | Pre-trained SkiPoseModel weights |
-
-**After downloading, place files as follows:**
-```
-SkiProject-SportTech/
-├── dataset/
-│   ├── frames/           ← Extract frames here
-│   ├── annotations/      ← Extract annotations here
-│   └── *.csv             ← Place CSV files here
-│
-└── SkiPoseModel/
-    └── results/
-        └── checkpoints/  ← Place model checkpoints here
-```
-
----
 
 ## 👥 Team
 
