@@ -73,7 +73,7 @@ def _determine_phase(jump_id: str, frame_num: int, phases_map: dict) -> str:
     Determines the flight phase based on jump_id and frame number.
     
     Phases:
-    1. Descending: from the first frame up to 6 before take_off_frame (frame_num < take_off - 6)
+    1. Roll-in: from the first frame up to 6 before take_off_frame (frame_num < take_off - 6)
     2. Take off: from 5 before to 5 after take_off_frame (take_off - 5 <= frame_num <= take_off + 5)
     3. Flight: from 6 after take_off_frame up to 9 before landing (take_off + 6 <= frame_num <= landing - 10)
     4. Landing: from 9 before landing onwards (frame_num >= landing - 9)
@@ -88,7 +88,7 @@ def _determine_phase(jump_id: str, frame_num: int, phases_map: dict) -> str:
     if take_off is None or landing is None:
         return 'Unknown'
     if frame_num < take_off - 6:
-        return 'Descending'
+        return 'Roll-in'
     if take_off - 5 <= frame_num <= take_off + 5:
         return 'Take Off'
     if take_off + 6 <= frame_num <= landing - 10:

@@ -27,7 +27,7 @@ col_text, col_img = st.columns([5, 1], gap="medium", vertical_alignment="bottom"
 with col_text:
     st.title("Ski Jump Dataset Gallery")
     st.markdown("""
-    Here you can explore the results of our annotation project applied to the **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)**, focused on competitive **ski jumping**.
+    Here you can explore the results of our annotation project applied to the **[Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/)**, focused on competitive **ski jumping**.
 
     The visualization highlights our custom **23-keypoint skeleton** structure. Both original and annotated frames are shown, and you have the possibility to explore the dataset by filtering per jump, athlete, jump phase, and frame type.
     """)
