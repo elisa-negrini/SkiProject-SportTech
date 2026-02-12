@@ -1,10 +1,10 @@
-# 🏗️ Annotation Preprocessing 
+#  Annotation Preprocessing 
 
 This folder contains the **annotation preprocessing pipeline** that transforms raw COCO-format exports from [Roboflow](https://roboflow.com/) into clean, interpolated, and normalized keypoint annotations ready for downstream metric computation and model training.
 
 ---
 
-## 📁 Folder Structure
+##  Folder Structure
 
 ```
 annotation_preprocessing/
@@ -13,43 +13,22 @@ annotation_preprocessing/
 └── utils/                         # Function classes used for annotation pipeline
 ```
 
----
-
-## ⚠️ Data Availability
-
-| Item | In GitHub repo? | Notes |
-|------|:-:|-------|
-| `main.py` | ✅ | Ready to use |
-| `utils/` | ✅ | Ready to use |
-| `raw_annotations/` | ❌ | Contains Roboflow COCO JSON exports. Download from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link) and place inside `annotation_preprocessing/`. |
 
 ---
 
-## 🔄 Pipeline Overview
+## 🔄 Pipeline Overview & Modules
 
 The pipeline is executed interactively through `main.py`. For each jump, the following steps are performed in sequence:
 
 | Step | Module | Description |
 |------|--------|-------------|
-| **1. Extract** | `AnnotationManager` | Parses the full COCO export and extracts annotations for a specific jump using Roboflow user tags. |
-| **2. Filter Boxes** | `filter_boxes` | Filters bounding boxes by removing entries corresponding to frames that were manually excluded (removed/occluded). |
-| **3. Interpolate** | `Interpolator` | Linearly interpolates keypoints between manually annotated frames (~60) to fill all ~350 frames of each jump. Keypoints are normalized to the bounding box before interpolation and denormalized afterward. |
-| **4. Visualize** | `Visualizer` | Generates annotated images with skeleton overlays and compiles them into an MP4 video for quality inspection. |
-| **5. Normalize** | `Normalizer` | Applies anatomical normalization (pelvis-rooted, hybrid body-scale) and fixed scaling to map all keypoints into a resolution- and position-independent [0, 1] coordinate space. |
+| **1. Extract** | `annotation_manager.py` | Parses the full COCO export and extracts annotations for a specific jump using Roboflow user tags.  |
+| **2. Filter Boxes** | `box_filter.py`  | Filters bounding boxes by removing entries corresponding to frames that were manually excluded (removed/occluded). |
+| **3. Interpolate** | `interpolator.py`  | Linearly interpolates keypoints between manually annotated frames (~60) to fill all ~350 frames of each jump.  |
+| **4. Visualize** | `visualizer.py`  | Generates annotated images with skeleton overlays and compiles them into an MP4 video for quality inspection. Draws color-coded skeletons and bounding boxes on video frames. |
+| **5. Normalize** | `normalizer.py`  | Applies anatomical normalization (pelvis-rooted, hybrid body-scale) and fixed scaling to map all keypoints into a resolution- and position-independent [0, 1] coordinate space. Generates grid visualizations and outputs per-jump normalized data. |
 
 After all jumps are processed, the `Normalizer` aggregates all normalized annotations into a single `keypoints_dataset.csv` file.
-
----
-
-## 📦 Utils Modules
-
-| File | Class / Function | Description |
-|------|------------------|-------------|
-| `annotation_manager.py` | `AnnotationManager` | Reads the full COCO JSON from `raw_annotations/train/`, filters images by jump-specific user tags, and writes per-jump annotation files to `dataset/annotations/JP00XX/`. |
-| `box_filter.py` | `filter_boxes()` | Reads `boxes.txt` from `dataset/frames/JP00XX/`, removes lines corresponding to frames in `removed/` and `occluded/` subfolders, and writes `boxes_filtered.txt`. |
-| `interpolator.py` | `Interpolator` | Loads per-jump annotations and filtered bounding boxes, then linearly interpolates keypoints (in bbox-normalized space) between annotated frames. Outputs an interpolated COCO JSON. |
-| `normalizer.py` | `Normalizer` | Computes a hybrid anatomical scale (torso + longest leg + shoulder width) and a pelvis root, then normalizes all keypoints into [0, 1] space. Also generates grid visualizations and the final `keypoints_dataset.csv`. |
-| `visualizer.py` | `Visualizer` | Draws color-coded skeletons and bounding boxes on video frames. Creates per-frame overlay images and assembles them into an output video. |
 
 ---
 
@@ -57,7 +36,7 @@ After all jumps are processed, the `Normalizer` aggregates all normalized annota
 
 **1.** Download `raw_annotations/` from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link) and place it inside `annotation_preprocessing/`.
 
-**2.** Make sure the `dataset/frames/` folder is also available (see the main [README](../README.md#-dataset--checkpoints-download)).
+**2.** Make sure the `dataset/frames/` folder is also available (otherwise downdload from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link)).
 
 **3.** Run the pipeline from the project root:
 
@@ -66,7 +45,7 @@ python annotation_preprocessing/main.py
 ```
 
 **4.** The script will interactively ask for:
-- **Jump range** — e.g. `1-5` or `6`
+- **Jump range** — e.g. `10-15` or `6`
 - **Interpolation** — whether to interpolate between annotated frames
 - **Visualization** — whether to generate overlay video
 - **Normalization** — whether to normalize keypoints
@@ -90,6 +69,6 @@ dataset/
 └── keypoints_dataset.csv                          # Aggregated normalized keypoints (all jumps)
 ```
 
-The generated `keypoints_dataset.csv` is the primary input for the `metrics/` pipeline and the `SkiPoseModel/`.
+The generated `keypoints_dataset.csv` is the primary input for the `metrics/` pipeline.
 
 ---
