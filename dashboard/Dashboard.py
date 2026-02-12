@@ -15,7 +15,7 @@ col_text, col_img = st.columns([4, 1], gap="medium", vertical_alignment="bottom"
 with col_text:
     st.title("Ski Jump Performance Analysis Dashboard")
     st.markdown("""
-    This dashboard presents our custom **23-keypoint skeleton annotations** applied to the **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)**.
+    This dashboard presents our custom **23-keypoint skeleton annotations** applied to the **[Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/)**.
 
     **Dashboard Structure:**
     
