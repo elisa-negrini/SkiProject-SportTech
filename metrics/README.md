@@ -111,7 +111,7 @@ The `metrics_visualizer.py` script draws metric-specific overlays on the origina
     <td align="center"><img src="https://github.com/user-attachments/assets/979ac743-5b81-496f-addb-45aa4e77a31b" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/d5df2001-f4b6-431c-bb9f-784d43e4ef5d" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
-    <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/5d418b81-5952-4bf4-9b49-18e6819948e0" width="100%"></td>
   </tr>
   <tr>
     <td align="center"><b>Take-off Knee Angle</b></td>
@@ -191,7 +191,8 @@ Each row is one jump. Look for:
 1. **Small dataset**: only 32 annotated jumps, limiting statistical power. Some correlations may not reach significance.
 2. **Low performance heterogeneity**:  all jumps are winners (or podiums) in FIS World Cup, so differences between athletes are small, and there is really low variance between jumps. A more diverse dataset would yield stronger signals.
 3. **2D and perspective**: metrics are computed from multi-camera views. Cameras are not calibrated, the videos are taken in different competition, on different hills and on different HS (hill size). With the 2D perspective we are not able to extract completely reliable and robus metrics.
-4. **Style penalty model performance**: the Ridge model achieves R² = −0.34 on LOO-CV (MAE = 2.05, RMSE = 2.83), meaning it underperforms a simple mean prediction. This is expected given the limited data and feature set. The model correctly captures the telemark quality effect, but the negative coefficients for flight stability and landing impact are counterintuitive and suggest the model cannot reliably interpret these features with the current dataset. The formula should be interpreted as directional insight for telemark only, not as an accurate predictor overall. The direction of the landing feature is also counterintuitive. 
+
+EFFECT: **Style penalty model performance**: the Ridge model achieves R² = −0.34 on LOO-CV (MAE = 2.05, RMSE = 2.83), meaning it underperforms a simple mean prediction. This is expected given the limited data and feature set. The model correctly captures the telemark quality effect, but the negative coefficients for flight stability and landing impact are counterintuitive and suggest the model cannot reliably interpret these features with the current dataset. The formula should be interpreted as directional insight for telemark only, not as an accurate predictor overall. The direction of the landing feature is also counterintuitive. 
 
 ---
 
