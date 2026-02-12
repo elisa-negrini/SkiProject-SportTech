@@ -34,7 +34,7 @@ class CorrelationVisualizer:
         
         if not self.corr_file.exists():
             print(f"[!] Correlations file not found: {self.corr_file}")
-            print("[*] Run intelligent_correlation_analysis.py first")
+            print("[*] Run correlation_analysis.py first")
             return False
         
         self.df_corr = pd.read_csv(self.corr_file)
@@ -270,7 +270,7 @@ class CorrelationVisualizer:
         
         print("\n\n")
         print("=" * 60)
-        print("INTELLIGENT CORRELATION VISUALIZATIONS")
+        print("CORRELATION VISUALIZATIONS")
         print("Ski Jumping Performance Metrics")
         print("=" * 60)
         

@@ -1,84 +1,88 @@
-INTELLIGENT CORRELATION ANALYSIS - SUMMARY REPORT
-======================================================================
+SUMMARY REPORT
+Total correlations computed: 48
+Significant correlations (p<0.05): 6
 
-Total correlations computed: 60
-Significant correlations (p<0.05): 3
-
-
-======================================================================
 TARGET: AthleteScore
-======================================================================
-
-[+] SIGNIFICANT CORRELATIONS (p<0.05): 1
+[+] SIGNIFICANT CORRELATIONS (p<0.05): 2
 ----------------------------------------------------------------------
 
 avg_v_style_front:
-    r =  0.5904  (p = 0.0160)
-    95% CI: [ 0.1339,  0.8402]
-    R^2 = 0.3486 (34.86% variance explained)
-    Spearman rho =  0.4765  (p = 0.0621)
+    r =  0.6126  (p = 0.0089)
+    95% CI: [ 0.1871,  0.8446]
+    R^2 = 0.3753 (37.53% variance explained)
+    Spearman rho =  0.5270  (p = 0.0297)
+
+telemark_scissor_mean:
+    r = -0.3878  (p = 0.0377)
+    95% CI: [-0.6604, -0.0248]
+    R^2 = 0.1504 (15.04% variance explained)
+    Spearman rho = -0.3882  (p = 0.0374)
 
 [*] TOP 10 CORRELATIONS (all):
 ----------------------------------------------------------------------
- 1. [*] avg_v_style_front                   r= 0.5904  (n=16)
- 2. [ ] telemark_stability                  r= 0.3286  (n=31)
- 3. [ ] avg_symmetry_index_back             r=-0.3170  (n= 6)
- 4. [ ] flight_mean_bsa                     r=-0.2787  (n=30)
- 5. [ ] takeoff_timing_offset               r= 0.2170  (n=24)
- 6. [ ] telemark_scissor_mean               r=-0.2016  (n=16)
- 7. [ ] flight_std                          r=-0.2001  (n=30)
- 8. [ ] avg_telemark_leg_angle              r=-0.1599  (n=22)
- 9. [ ] avg_v_style_back                    r=-0.1235  (n= 6)
-10. [ ] avg_body_ski_angle                  r=-0.1183  (n=30)
-
-======================================================================
+ 1. [*] avg_v_style_front                   r= 0.6126  (n=17)
+ 2. [*] telemark_scissor_mean               r=-0.3878  (n=29)
+ 3. [ ] flight_mean_bsa                     r=-0.3575  (n=30)
+ 4. [ ] avg_v_style_back                    r=-0.3355  (n= 4)
+ 5. [ ] flight_std                          r=-0.2896  (n=30)
+ 6. [ ] landing_hip_velocity                r=-0.2146  (n=31)
+ 7. [ ] telemark_stability                  r= 0.1947  (n=29)
+ 8. [ ] takeoff_timing_offset               r= 0.1789  (n=24)
+ 9. [ ] flight_jitter                       r=-0.1536  (n=30)
+10. [ ] avg_body_ski_angle                  r=-0.1339  (n=30)
 TARGET: Physical_Score
-======================================================================
-
-[+] SIGNIFICANT CORRELATIONS (p<0.05): 1
+[+] SIGNIFICANT CORRELATIONS (p<0.05): 3
 ----------------------------------------------------------------------
 
 avg_v_style_front:
-    r =  0.5795  (p = 0.0186)
-    95% CI: [ 0.1176,  0.8353]
-    R^2 = 0.3358 (33.58% variance explained)
-    Spearman rho =  0.4735  (p = 0.0639)
+    r =  0.6028  (p = 0.0104)
+    95% CI: [ 0.1719,  0.8400]
+    R^2 = 0.3633 (36.33% variance explained)
+    Spearman rho =  0.5245  (p = 0.0307)
+
+telemark_scissor_mean:
+    r = -0.3832  (p = 0.0402)
+    95% CI: [-0.6574, -0.0194]
+    R^2 = 0.1468 (14.68% variance explained)
+    Spearman rho = -0.3823  (p = 0.0407)
+
+flight_mean_bsa:
+    r = -0.3629  (p = 0.0487)
+    95% CI: [-0.6396, -0.0030]
+    R^2 = 0.1317 (13.17% variance explained)
+    Spearman rho = -0.2512  (p = 0.1806)
 
 [*] TOP 10 CORRELATIONS (all):
 ----------------------------------------------------------------------
- 1. [*] avg_v_style_front                   r= 0.5795  (n=16)
- 2. [ ] telemark_stability                  r= 0.3340  (n=31)
- 3. [ ] avg_symmetry_index_back             r=-0.3246  (n= 6)
- 4. [ ] flight_mean_bsa                     r=-0.2721  (n=30)
- 5. [ ] takeoff_timing_offset               r= 0.2143  (n=24)
- 6. [ ] telemark_scissor_mean               r=-0.2136  (n=16)
- 7. [ ] flight_std                          r=-0.1919  (n=30)
- 8. [ ] avg_telemark_leg_angle              r=-0.1528  (n=22)
- 9. [ ] avg_v_style_back                    r=-0.1218  (n= 6)
-10. [ ] landing_absorption_rate             r=-0.1172  (n=31)
-
-======================================================================
+ 1. [*] avg_v_style_front                   r= 0.6028  (n=17)
+ 2. [*] telemark_scissor_mean               r=-0.3832  (n=29)
+ 3. [*] flight_mean_bsa                     r=-0.3629  (n=30)
+ 4. [ ] avg_v_style_back                    r=-0.3266  (n= 4)
+ 5. [ ] flight_std                          r=-0.2900  (n=30)
+ 6. [ ] landing_hip_velocity                r=-0.2173  (n=31)
+ 7. [ ] telemark_stability                  r= 0.1944  (n=29)
+ 8. [ ] takeoff_timing_offset               r= 0.1779  (n=24)
+ 9. [ ] flight_jitter                       r=-0.1458  (n=30)
+10. [ ] avg_body_ski_angle                  r=-0.1305  (n=30)
 TARGET: Style_Score
-======================================================================
-
 [+] SIGNIFICANT CORRELATIONS (p<0.05): 1
 ----------------------------------------------------------------------
 
 landing_knee_compression:
-    r = -0.5713  (p = 0.0008)
-    95% CI: [-0.7698, -0.2721]
-    R^2 = 0.3264 (32.64% variance explained)
-    Spearman rho = -0.4798  (p = 0.0063)
+    r = -0.5700  (p = 0.0008)
+    95% CI: [-0.7690, -0.2702]
+    R^2 = 0.3249 (32.49% variance explained)
+    Spearman rho = -0.4769  (p = 0.0067)
 
 [*] TOP 10 CORRELATIONS (all):
 ----------------------------------------------------------------------
- 1. [*] landing_knee_compression            r=-0.5713  (n=31)
- 2. [ ] avg_symmetry_index_back             r= 0.5376  (n= 6)
- 3. [ ] telemark_scissor_mean               r= 0.4505  (n=16)
- 4. [ ] avg_v_style_front                   r= 0.3730  (n=16)
- 5. [ ] avg_telemark_leg_angle              r=-0.3187  (n=22)
- 6. [ ] flight_std                          r=-0.3045  (n=30)
- 7. [ ] flight_mean_bsa                     r=-0.2567  (n=30)
- 8. [ ] landing_absorption_rate             r= 0.1830  (n=31)
- 9. [ ] telemark_stability                  r=-0.1697  (n=31)
-10. [ ] landing_hip_velocity                r= 0.1450  (n=31)
+ 1. [*] landing_knee_compression            r=-0.5700  (n=31)
+ 2. [ ] avg_v_style_back                    r=-0.5184  (n= 4)
+ 3. [ ] avg_symmetry_index_back             r= 0.3046  (n= 4)
+ 4. [ ] flight_jitter                       r=-0.2869  (n=30)
+ 5. [ ] avg_v_style_front                   r= 0.2301  (n=17)
+ 6. [ ] telemark_scissor_mean               r=-0.2050  (n=29)
+ 7. [ ] landing_absorption_rate             r= 0.1943  (n=29)
+ 8. [ ] flight_mean_bsa                     r= 0.1669  (n=30)
+ 9. [ ] takeoff_knee_angle                  r=-0.1618  (n=26)
+10. [ ] avg_body_ski_angle                  r=-0.1311  (n=30)
