@@ -240,16 +240,17 @@ class SkiJumpAnalyst:
         if data['top_mean'] is None: return
         x = np.linspace(0, 100, self.normalized_length)
         
-        plt.figure(figsize=(10, 6))
-        plt.plot(x, data['top_mean'], 'g-', linewidth=2, label='Top Performers')
+        plt.figure(figsize=(12, 8))
+        plt.plot(x, data['top_mean'], 'g-', linewidth=3, label='Top Performers')
         plt.fill_between(x, data['top_mean']-data['top_std'], data['top_mean']+data['top_std'], color='green', alpha=0.2)
-        plt.plot(x, data['flop_mean'], 'r--', linewidth=2, label='Low Performers')
+        plt.plot(x, data['flop_mean'], 'r--', linewidth=3, label='Low Performers')
         plt.fill_between(x, data['flop_mean']-data['flop_std'], data['flop_mean']+data['flop_std'], color='red', alpha=0.2)
         
-        plt.title("Body-Ski Angle: Top 5 vs Bottom 5", fontsize=14)
-        plt.xlabel("Flight Phase %")
-        plt.ylabel("Angle (deg)")
-        plt.legend()
+        plt.title("Body-Ski Angle: Top 5 vs Bottom 5", fontsize=30)
+        plt.xlabel("Flight Phase %",  fontsize=26)
+        plt.ylabel("Angle (deg)",  fontsize=26)
+        plt.legend(fontsize=20, loc='best')
+        plt.tick_params(axis='both', which='major', labelsize=20)
         plt.grid(True, alpha=0.3)
         
         out_file = self.output_dir / 'top_vs_flop_comparison.png'
