@@ -125,7 +125,7 @@ metrics/
 We are aware that some of the results obtained from the metrics and correlation analyses are **not all statistically significant**, for two main reasons:
 
 1. **Small dataset**: with only 32 annotated jumps, the sample size limits the statistical power of any analysis.
-2. **Low performance heterogeneity**: all jumps in the dataset come from top-level international FIS World Cup competitions. Since all athletes perform at a very high level, it is inherently difficult to distinguish between "good" and "less good" performances, making predictions and meaningful analyses harder. A more heterogeneous dataset (e.g., including amateur-level jumps) would likely yield more significant and differentiated results.
+2. **Low performance heterogeneity**: All jumps in the dataset are winners or podiums in **FIS World Cup competitions**, representing the absolute elite standard of the sport. Since these are **top-level athletes**, the data exhibits low variance, making difficult to capture distinct patterns or significant differences between jumps, as the biomechanical margins between competitors are minimal. A more heterogeneous dataset would likely yield more significant and differentiated results.
 
 ---
 
@@ -201,7 +201,7 @@ pip install -r requirements.txt
 ```
 
 ---
-## 💾 Dataset & Checkpoints Download
+## Dataset & Checkpoints Download
 
 > ⚠️ **Note**: The dataset and model checkpoints are not included in the repository due to size constraints.
 
@@ -294,13 +294,19 @@ streamlit run dashboard/Dashboard.py
 
 ## ⚠️ Main Limitations
 
-
+- **Small Sample Size**: The dataset is limited to 32 annotated jumps, reducing statistical power for correlation analysis.
+- **Low Heterogeneity**: Most samples represent 1st place or podium finishes by elite athletes, resulting in low variance in performance metrics.
+- **2D Perspective**: Metrics are computed in 2D space, making them susceptible to foreshortening and perspective distortions.
+- **Uncalibrated Cameras**: Footage sourced from broadcast streams has varying camera angles (multi-view) and lacks intrinsic calibration, affecting metric consistency.
+- **Hill Variability**: Jumps were recorded on different hills with varying geometric profiles, introducing uncontrolled environmental variables.
 
 ---
 
 ## Future Work
 
-
+- **3D Pose Lifting**: Implement 3D lifting techniques to convert 2D keypoints into 3D space, obtaining true biomechanical angles independent of camera perspective.
+- **Dataset Expansion**: Incorporate jumps from junior categories or training sessions to introduce performance variance and improve model generalization.
+- **Real-Time Application**: Optimize the pipeline for real-time inference to enable live visual feedback for TV broadcasts or coaching.
 
 ---
 
@@ -316,13 +322,14 @@ streamlit run dashboard/Dashboard.py
 
 ## Acknowledgments
 
-- **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)** — Base dataset for ski jumping videos
-- **[Roboflow](https://roboflow.com/)** — Annotation platform
-- **[Ski Pose Prediction](https://github.com/kaulquappe23/ski-pose-prediction)** — Original SkiPoseModel paper and code
-- **[PyTorch Lightning](https://lightning.ai/)** — Deep learning framework
-- **[Streamlit](https://streamlit.io/)** — Dashboard framework
+- **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)**: Base dataset for ski jumping videos
+- **[Roboflow](https://roboflow.com/)**: Annotation platform
+- **[FIS Ski Jumping Rule Book](https://assets.fis-ski.com/f/252177/x/c67426c343/icr-ski-jumping-2024_e_clean.pdf)**: Rule book to validate our metrics and performance analysis
+- **[Kinematic Analysis of the Take-Off and Start of the Early Flight Phase on a Large Hill (HS-134 m) during the 2009 Nordic World Ski Championships](https://doi.org/10.2478/v10078-011-0001-5)**: Validates our take-off metrics
+- **[Optimal flight technique for V-style ski jumping](https://doi.org/10.1007/BF02915921?urlappend=%3Futm_source%3Dresearchgate.net%26utm_medium%3Darticle)**: Validates our flight phase metrics
+- **[Ground Reaction Forces and Kinematics of Ski Jump Landing Using Wearable Sensors](https://doi.org/10.3390/s19092011)** and **[Landing in Ski Jumping: A Review About its Biomechanics and the Connected Injuries](https://doi.org/10.1007/s42978-020-00096-9?urlappend=%3Futm_source%3Dresearchgate.net%26utm_medium%3Darticle)**: Validate our landing metrics
 
 ---
 
-**Sport Tech 2025/2026** — University of Trento
+Sport Tech 2025/2026, University of Trento
 

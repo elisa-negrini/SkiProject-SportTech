@@ -16,7 +16,7 @@ annotation_preprocessing/
 
 ---
 
-## 🔄 Pipeline Overview & Modules
+## Pipeline Overview & Modules
 
 The pipeline is executed interactively through `main.py`. For each jump, the following steps are performed in sequence:
 
@@ -52,7 +52,7 @@ python annotation_preprocessing/main.py
 
 ---
 
-## 📤 Output
+## Output
 
 All output is written to the `dataset/` folder:
 

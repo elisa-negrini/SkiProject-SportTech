@@ -26,7 +26,7 @@ dataset/
 
 ---
 
-## 📄 File Descriptions
+## File Descriptions
 
 ### `keypoints_dataset.csv`
 
