@@ -89,21 +89,6 @@ Computed by `test_timeseries_metrics.py`, focus on derivatives and variability.
 
 The `metrics_visualizer.py` script draws metric-specific overlays on the original frames and supports five metric types:
 
-<!-- ════════════════════════════════════════════════════════════════
-     📸 INSERT YOUR IMAGES HERE
-     Replace the GitHub `user-attachments/assets/...` URLs below
-     with the actual URLs after uploading screenshots to GitHub.
-     
-     Recommended: pick one representative frame per metric, e.g.
-       - Take-off knee angle  → a frame near take-off
-       - Body-ski angle       → a mid-flight frame
-       - V-style angle        → a front-view flight frame
-       - Symmetry index       → a back-view flight frame
-       - Telemark scissor     → a landing frame
-     
-     Source frames are in:
-       metrics/metrics_visualizations/frame_overlays/<jump_id>/<metric_name>/
-     ════════════════════════════════════════════════════════════════ -->
 
 <table border="0">
   <tr>
@@ -121,6 +106,8 @@ The `metrics_visualizer.py` script draws metric-specific overlays on the origina
     <td align="center"><b>Telemark Scissor</b></td>
   </tr>
 </table>
+
+If you want to visualize the metrics, place the frame_overlays folder you can find in [Google Drive](https://drive.google.com/drive/u/0/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN) inside the metrics/metrics_visualizations folder
 
 ---
 
@@ -160,12 +147,16 @@ A **Ridge regression** model that predicts how many style points a jumper loses 
 
 | Feature | Weight | Interpretation |
 |---------|--------|----------------|
-| `telemark_scissor_mean` | +0.45 (59%) | Higher separation → more penalty ✓ |
-| `landing_hip_velocity` | −0.20 (26%) | Unexpected negative correlation |
-| `flight_std` | −0.11 (15%) | Unexpected negative correlation |
+| `telemark_scissor_mean` | + 0.2688 | Higher separation → more penalty ✓ |
+| `landing_knee_compression` | + 1.3530 | Higher value -> MORE penalty |
+| `flight_std` | + 0.1338 | Higher value -> MORE penalty |
 
-Training uses **Leave-One-Out cross-validation** for unbiased evaluation on the small dataset, composed of 32 samples. The model successfully captures the telemark quality effect (worse telemark → more penalty), but fails to correctly interpret flight stability and landing impact features.
+Training uses **Leave-One-Out cross-validation** for unbiased evaluation on the small dataset, composed of 32 samples. 
 
+**Model Performance (LOO-CV):**
+* **$R^2$ Score**: `0.042` (Low variance explained)
+* **Mean Absolute Error (MAE)**: `1.81` points
+  
 ---
 
 ## How to Interpret Results
