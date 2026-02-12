@@ -68,12 +68,12 @@ Computed by `metrics_computation.py`, averaged over the relevant phase window.
 | `takeoff_knee_angle` | degrees | Knee extension angle at the take-off frame |
 | `takeoff_timing_offset` | frames | Delay between peak velocity and take-off frame |
 | `takeoff_peak_velocity` | deg/s | Peak angular velocity at take-off |
-| `telemark_scissor_mean` | normalised | Average horizontal leg separation at landing |
-| `telemark_stability` | degrees | Standard deviation of scissor distance during landing |
+| `telemark_scissor_mean` | normalised | Average vertical leg separation at landing |
+| `telemark_stability` | normalised | Standard deviation of scissor distance during landing |
 
 ### Time-Series Dynamic Metrics
 
-Computed by `test_timeseries_metrics.py`, focus on derivatives and vaiability.
+Computed by `test_timeseries_metrics.py`, focus on derivatives and variability.
 
 | Metric | Unit | Description |
 |--------|------|-------------|
@@ -160,11 +160,11 @@ A **Ridge regression** model that predicts how many style points a jumper loses 
 
 | Feature | Weight | Interpretation |
 |---------|--------|----------------|
-| `telemark_scissor_mean` | −0.56 (45%) | Better telemark → less penalty |
-| `flight_std` | +0.44 (36%) | More unstable flight → more penalty |
-| `landing_hip_velocity` | −0.24 (19%) | Harder landing → more penalty |
+| `telemark_scissor_mean` | +0.45 (59%) | Higher separation → more penalty ✓ |
+| `landing_hip_velocity` | −0.20 (26%) | Unexpected negative correlation |
+| `flight_std` | −0.11 (15%) | Unexpected negative correlation |
 
-Training uses **Leave-One-Out cross-validation** for unbiased evaluation on the small dataset, composed of 32 samples.
+Training uses **Leave-One-Out cross-validation** for unbiased evaluation on the small dataset, composed of 32 samples. The model successfully captures the telemark quality effect (worse telemark → more penalty), but fails to correctly interpret flight stability and landing impact features.
 
 ---
 
@@ -191,11 +191,11 @@ Each row is one jump. Look for:
 1. **Small dataset**: only 32 annotated jumps, limiting statistical power. Some correlations may not reach significance.
 2. **Low performance heterogeneity**:  all jumps are winners (or podiums) in FIS World Cup, so differences between athletes are small, and there is really low variance between jumps. A more diverse dataset would yield stronger signals.
 3. **2D and perspective**: metrics are computed from multi-camera views. Cameras are not calibrated, the videos are taken in different competition, on different hills and on different HS (hill size). With the 2D perspective we are not able to extract completely reliable and robus metrics.
-4. **Style penalty model performance**: the Ridge model achieves R² < 0 on LOO-CV, meaning it underperforms a simple mean prediction. This is expected given the limited data and feature set, the formula should be interpreted as directional insight, not as an accurate predictor.
+4. **Style penalty model performance**: the Ridge model achieves R² = −0.34 on LOO-CV (MAE = 2.05, RMSE = 2.83), meaning it underperforms a simple mean prediction. This is expected given the limited data and feature set. The model correctly captures the telemark quality effect, but the negative coefficients for flight stability and landing impact are counterintuitive and suggest the model cannot reliably interpret these features with the current dataset. The formula should be interpreted as directional insight for telemark only, not as an accurate predictor overall. The direction of the landing feature is also counterintuitive. 
 
 ---
 
 ## 🔗 Related
 
 - [Main project README](../README.md), full project overview
-- [Dataset](../dataset/) — annotated keypoints, jump phases, and athlete data
+- [Dataset](../dataset/), annotated keypoints, jump phases, and athlete data
