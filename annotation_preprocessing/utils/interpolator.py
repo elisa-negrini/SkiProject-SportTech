@@ -117,6 +117,10 @@ class Interpolator:
             kp_b = self._normalize_kp(ann_b["keypoints"], bbox_b)
 
             for cur in range(fa + 1, fb):
+
+                if cur not in idx_main:
+                    print(f"⚠️ Skipping interpolation for frame {cur} (not in main frames)")
+                    continue
                 t = (cur - fa) / (fb - fa)
                 
                 new_img = copy.deepcopy(img_a)
