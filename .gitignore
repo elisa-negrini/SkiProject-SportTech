@@ -15,7 +15,7 @@ __pycache__/
 *.pyd
 
 # Specific File Types/Names to Ignore
-*.json
+#*.json
 *.jpg
 *.png
 *.mp4
