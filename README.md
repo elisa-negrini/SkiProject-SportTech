@@ -14,7 +14,7 @@ This project develops an end-to-end system for **2D metrics extraction from ski 
 
 The main objectives are:
 
-1. **Create on of the biggest annotated ski jumping dataset**: manually label a 23-keypoint skeleton (body + skis) on competition videos.
+1. **Create one of the biggest annotated ski jumping dataset**: manually label a 23-keypoint skeleton (body + skis) on competition videos.
 2. **Extract biomechanical metrics**: compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores and athletes distance.
 3. **Train the [Ski Pose Estimation model](https://doi.org/10.1109/STAR62027.2024.10635966)**: use a transformer-based deep learning model to predict ski positions given only the body skeleton.
 
@@ -101,6 +101,7 @@ Starting from the annotated and normalized keypoints, we computed a set of **2D 
   </tr>
 </table>
 
+
 ### Folder Structure
 
 ```
@@ -144,7 +145,7 @@ The model predicts the 8 ski keypoints (4 per ski). After inference, a **PCA-bas
     <td><img src="https://github.com/user-attachments/assets/6d055e64-c65b-4ec9-b3b0-9616e7c310d4" width="100%" alt="test_0005"></td>
     <td><img src="https://github.com/user-attachments/assets/0ab91d10-9da8-49f9-add1-9c4c60e1fa02" width="100%" alt="test_0068"></td>
     <td><img src="https://github.com/user-attachments/assets/39488478-2d61-4020-b62f-06d585fa5bd1" width="100%" alt="test_0093"></td>
-    <td><img src="https://github.com/user-attachments/assets/0cae2e0c-063e-4c74-8264-853d3b6cb4a8" width="100%" alt="test_0037"></td>
+    <td><img src="https://github.com/user-attachments/assets/d765345f-0322-4884-9111-1578b748ae9a" width="100%" alt="test_0037"></td>
   </tr>
  
 </table>
@@ -214,9 +215,12 @@ Downdload the content of this [Google Drive](https://drive.google.com/drive/fold
 │   ├── frames/                 ← Extract frames here
 │   └── annotations/            ← Extract annotations here
 │
-└── SkiPoseModel/
+├── SkiPoseModel/
 │   ├── results/                ← Place results here
 │   └── dataset_preprocessed/   ← Place dataset_preprocessed here
+│
+├── metrics/
+    └── metrics_visualizations/ ← Place frame_overlays
 ```
 
 
@@ -285,10 +289,6 @@ The dashboard provides two main screens:
 ```bash
 streamlit run dashboard/Dashboard.py
 ```
-
-<!-- 📸 Add a short demo video/GIF for each dashboard screen here -->
-<!-- ![Gallery Explorer Demo](docs/videos/gallery_explorer_demo.gif) -->
-<!-- ![Metric Analysis Demo](docs/videos/metric_analysis_demo.gif) -->
 
 ---
 
