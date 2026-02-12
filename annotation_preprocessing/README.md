@@ -36,7 +36,7 @@ After all jumps are processed, the `Normalizer` aggregates all normalized annota
 
 **1.** Download `raw_annotations/` from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link) and place it inside `annotation_preprocessing/`.
 
-**2.** Make sure the `dataset/frames/` folder is also available (otherwise downdload from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link)).
+**2.** Make sure the `dataset/frames/` folder is also available (otherwise download from [Google Drive](https://drive.google.com/drive/folders/10cKnZdP3x-tIoTHMw_nk2GYT9gc-uXRN?usp=drive_link)).
 
 **3.** Run the pipeline from the project root:
 
