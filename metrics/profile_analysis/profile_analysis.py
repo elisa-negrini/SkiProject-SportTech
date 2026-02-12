@@ -211,9 +211,9 @@ class SkiJumpAnalyst:
         top_group = df_s.head(top_n)
         flop_group = df_s.tail(top_n)
         
-        print(f"\n🏆 TOP {top_n} ATLETI (High Style):")
+        print(f"\n🏆 TOP {top_n} ATLETS (High Style):")
         for _, r in top_group.iterrows(): print(f"   {r['jump_id']}: {r['AthleteName']} ({r['Style_Score']})")
-        print(f"\n📉 FLOP {top_n} ATLETI (Low Style):")
+        print(f"\n📉 FLOP {top_n} ATLETS (Low Style):")
         for _, r in flop_group.iterrows(): print(f"   {r['jump_id']}: {r['AthleteName']} ({r['Style_Score']})")
         
         top_ids = top_group['jump_id'].tolist()
