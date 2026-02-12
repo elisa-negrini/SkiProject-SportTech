@@ -1,6 +1,6 @@
 # 📂 Dataset — Ski Jump Pose Annotations & Metadata
 
-This folder contains the core dataset used across the entire project pipeline: annotation preprocessing, biomechanical metrics computation, SkiPoseModel training, and the interactive dashboard. Overall 2015 frames were manually annotated and the final dataset comprises 9700? frames.
+This folder contains the core dataset used across the entire project pipeline: annotation preprocessing, biomechanical metrics computation, SkiPoseModel training, and the interactive dashboard. Overall 2015 frames were manually annotated and the final dataset comprises 9798 frames for a total of 32 jumps.
 
 
 ```
