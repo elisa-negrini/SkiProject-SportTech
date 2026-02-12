@@ -1,28 +1,27 @@
 """
-Style Penalty Model - Manual Feature Selection
-==============================================
+Style Penalty Model - Ridge Regression Attempt
+===============================================
 
-This model predicts STYLE SCORE LOSS based on 3 carefully selected features:
+This model attempts to predict STYLE SCORE LOSS from 3 biomechanical features.
 
 SELECTED FEATURES:
 ------------------
-1. flight_std: Flight stability (body-ski angle variation)
-   - Rationale: Judges reward stable, controlled flight positions
-   - Source: timeseries_metrics/timeseries_summary.csv
+1. landing_knee_compression: Knee flexion during landing absorption
+   - Univariate correlation with Style_Score: r = -0.57 (p < 0.001) 
+   - Expected: More flexion → softer landing → less penalty
    
-2. landing_hip_velocity: Impact hardness at landing
-   - Rationale: Judges heavily penalize hard landings (major deduction)
-   - Source: timeseries_metrics/timeseries_summary.csv
+2. flight_std: Body-ski angle standard deviation during flight
+   - Measures flight stability/frozenness
+   - Expected: More variation → less stable → more penalty
    
-3. telemark_scissor_mean: Telemark leg separation quality
-   - Rationale: Proper telemark position is required for style points
-   - Source: advanced_metrics/advanced_metrics_summary.csv
+3. telemark_scissor_mean: Leg separation in telemark landing
+   - Univariate correlation with Style_Score: r = -0.21
+   - Expected: Excessive separation → poor technique → more penalty
 
 WHY THESE 3 FEATURES:
 ---------------------
 - They are NOT correlated with each other (no multicollinearity)
-- They cover different phases: Flight (std), Landing (hip_velocity, scissor)
-- They have the strongest validated correlations with Style_Score
+- They have strong correlations with Style_Score
 - They are interpretable for coaches
 
 Output:
@@ -45,28 +44,29 @@ class StylePenaltyModel:
     
 
     MANUAL_FEATURES = {
-        'flight_std': {
-            'name': 'Flight Stability',
-            'description': 'Body-ski angle variation during flight (lower = more stable)',
-            'expected_effect': 'positive',  # More variation = more penalty
-            'category': 'Flight',
-            'source': 'timeseries'
-        },
-        'landing_hip_velocity': {
-            'name': 'Landing Impact',
-            'description': 'Hip descent velocity at landing (higher = harder landing)',
-            'expected_effect': 'positive',  # Harder landing = more penalty
-            'category': 'Landing',
-            'source': 'timeseries'
-        },
-        'telemark_scissor_mean': {
-            'name': 'Telemark Quality',
-            'description': 'Leg separation in telemark position (normalized)',
-            'expected_effect': 'context',  # Optimal range exists
-            'category': 'Landing',
-            'source': 'advanced'
-        }
+    'landing_knee_compression': {
+        'name': 'Landing Absorption Quality',
+        'description': 'Knee flexion during landing (degrees)',
+        'expected_effect': 'negative',  # More flexion = softer landing = less penalty
+        'category': 'Landing',
+        'source': 'timeseries',
+    },
+    'flight_std': {
+        'name': 'Flight Stability',
+        'description': 'Body-ski angle standard deviation during flight (degrees)',
+        'expected_effect': 'positive',  # More variation = less stable = more penalty
+        'category': 'Flight',
+        'source': 'timeseries'
+    },
+    'telemark_scissor_mean': {
+        'name': 'Telemark Position',
+        'description': 'Leg separation in telemark landing (normalized)',
+        'expected_effect': 'positive',  # More separation = worse technique = more penalty
+        'category': 'Landing',
+        'source': 'core',
+        'interpretation': 'Judges prefer compact, controlled telemark; excessive separation indicates instability'
     }
+}
     
     def __init__(self):
         """Initialize paths and configurations."""
@@ -119,7 +119,7 @@ class StylePenaltyModel:
             df = df.merge(df_ts, on='jump_id', how='left')
             print(f"   ✓ Time-series metrics: merged")
         else:
-            print(f"   ⚠️ Time-series file not found: {ts_file}")
+            print(f"   [WARN] Time-series file not found: {ts_file}")
         
         adv_file = self.metrics_path / 'core_metrics' / 'metrics_summary_per_jump.csv'
         if adv_file.exists():
@@ -127,7 +127,7 @@ class StylePenaltyModel:
             df = df.merge(df_adv, on='jump_id', how='left')
             print(f"   ✓ Advanced metrics: merged")
         else:
-            print(f"   ⚠️ Advanced metrics file not found: {adv_file}")
+            print(f"   [WARN] Advanced metrics file not found: {adv_file}")
         
         df = df.replace([np.inf, -np.inf], np.nan)
         
@@ -145,14 +145,15 @@ class StylePenaltyModel:
                 print(f"   ✓ {feat_name}: {n_valid} samples ({pct:.0f}%)")
                 available_features.append(feat_name)
             else:
-                print(f"   ❌ {feat_name}: NOT FOUND in data")
+                print(f"   [ERROR] {feat_name}: NOT FOUND in data")
         
         if not available_features:
-            print("   ⚠️ No features available!")
+            print("   [WARN] No features available!")
             return None, None, []
         
         df_valid = df.dropna(subset=['Style_Score'])
-        feature_mask = df_valid[available_features].notna().sum(axis=1) >= 2
+        min_features = min(2, len(available_features))  # Allow 1 feature if that's all we have
+        feature_mask = df_valid[available_features].notna().sum(axis=1) >= min_features
         df_valid = df_valid[feature_mask].copy()
         
         df_valid['style_penalty'] = self.max_style - df_valid['Style_Score']
@@ -244,11 +245,11 @@ class StylePenaltyModel:
             print(f"\n  {name}:")
             print(f"    → {desc}")
             if coef > 0:
-                print(f"    → Higher value = MORE penalty (worse)")
-                print(f"    💡 Coach tip: REDUCE this metric")
+                print(f"    -> Higher value = MORE penalty (worse)")
+                print(f"    Coach tip: REDUCE this metric")
             else:
-                print(f"    → Higher value = LESS penalty (better)")
-                print(f"    💡 Coach tip: INCREASE this metric")
+                print(f"    -> Higher value = LESS penalty (better)")
+                print(f"    Coach tip: INCREASE this metric")
         
         if 'AthleteName' in df_valid.columns:
             df_valid = df_valid.copy()
@@ -259,7 +260,7 @@ class StylePenaltyModel:
             print("-" * 50)
             
             worst = df_valid.nlargest(5, 'style_penalty')
-            print("\n  ⚠️ JUMPS WITH HIGHEST STYLE PENALTY:")
+            print("\n  JUMPS WITH HIGHEST STYLE PENALTY:")
             for _, row in worst.iterrows():
                 print(f"\n    {row['AthleteName']}")
                 print(f"    Style Score: {row['Style_Score']:.1f} (Best: {self.max_style})")
@@ -332,7 +333,7 @@ class StylePenaltyModel:
         X, y, df_valid = self.prepare_features(df)
         
         if X is None or len(X) < 10:
-            print("❌ Insufficient data for model training")
+            print("[ERROR] Insufficient data for model training")
             return False
         
         results = self.train_model(X, y)
