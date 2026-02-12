@@ -2,7 +2,7 @@
 
 # Ski Pose Estimation and Jump Performance Analysis 🎿
 
-From keypoint annotation to biomechanical metrics and score correlation — building a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
+> From keypoint annotation to biomechanical metrics and score correlation, building  a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
 
 </td><td>
 
@@ -15,7 +15,7 @@ This project develops an end-to-end system for **2D metrics extraction from ski 
 The main objectives are:
 
 1. **Create on of the biggest annotated ski jumping dataset**: manually label a 23-keypoint skeleton (body + skis) on competition videos.
-2. **Extract biomechanical metrics**: compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores and atlhetes distance.
+2. **Extract biomechanical metrics**: compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores and athletes distance.
 3. **Train the [Ski Pose Estimation model](https://doi.org/10.1109/STAR62027.2024.10635966)**: use a transformer-based deep learning model to predict ski positions given only the body skeleton.
 
 ### Future Applications
