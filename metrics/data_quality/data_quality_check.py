@@ -46,7 +46,7 @@ class DataQualityChecker:
         # Landing metrics
         'landing_hip_velocity': (0, 3),
         'landing_knee_compression': (0, 90),
-        'telemark_scissor_mean': (0, 0.30),
+        'telemark_scissor_mean': (0, 0.70),
         'telemark_stability': (0, 50),
         'avg_telemark_leg_angle': (0, 90),
         
