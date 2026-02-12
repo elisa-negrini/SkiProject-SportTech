@@ -33,12 +33,7 @@ The main objectives are:
 
 <img width="150" height="200" alt="skeleton" src="https://github.com/user-attachments/assets/3766cb99-825d-42bd-abe5-a2bd0b92ece8" align="right" />
 
-We annotated **32 ski jumps** from the [Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/) using a custom **23-keypoint skeleton model** (15 body joints + 8 ski keypoints). All annotations were created with **[Roboflow](https://roboflow.com/)**.
-
-<!-- 📸 Add skeleton diagram + Roboflow logo here -->
-<!-- ![23-Keypoint Skeleton](docs/images/skeleton_model.png) -->
-<!-- ![Roboflow Logo](docs/images/roboflow_logo.png) -->
-
+We annotated **32 ski jumps** from the [Ski-TB Dataset](https://machinelearning.uniud.it/datasets/skitb/) using a custom **23-keypoint skeleton model** (15 body joints + 8 ski keypoints). All annotations were created with **[Roboflow](https://roboflow.com/)** and the complete dataset comprises 9798 frames.
 
 
 ### Annotation Pipeline
@@ -85,7 +80,7 @@ Starting from the annotated and normalized keypoints, we computed a set of **2D 
 | **Body-Ski Angle** | `avg_body_ski_angle` | Inclination between body axis and ski axis during flight |
 | **Take-off** | `takeoff_knee_angle`, `knee_peak_velocity` | Knee extension angle and explosive velocity at jump |
 | **Flight Stability** | `flight_std`, `flight_jitter` | Variability and micro-instability of body-ski angle |
-| **Landing** | `landing_hip_velocity`, `landing_knee_compression`, `telemark_offset` | Landing softness and telemark quality |
+| **Landing** | `landing_hip_velocity`, `landing_knee_compression`, `telemark_scissor` | Landing softness and telemark quality |
 
 ### Metric Visualizations
 
@@ -95,12 +90,14 @@ Starting from the annotated and normalized keypoints, we computed a set of **2D 
     <td align="center"><img src="https://github.com/user-attachments/assets/979ac743-5b81-496f-addb-45aa4e77a31b" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/d5df2001-f4b6-431c-bb9f-784d43e4ef5d" width="100%"></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/cec4f3a2-9718-4f67-b9e1-3484ef398839" width="100%"></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/242db299-1904-428d-9cb4-4b4cba85026e" width="100%"></td>
   </tr>
   <tr>
     <td align="center"><b>Take Off knee angle</b></td>
     <td align="center"><b>Body Ski Angle</b></td>
     <td align="center"><b>V style Angle</b></td>
     <td align="center"><b>Symmetry Index</b></td>
+    <td align="center"><b>Telemark Scissor Ratio</b></td>
   </tr>
 </table>
 
@@ -144,10 +141,10 @@ We adapted the model to our custom 23-keypoint dataset and trained it on a total
 The model predicts the 8 ski keypoints (4 per ski). After inference, a **PCA-based linearization** step is applied to force the predicted ski points onto a straight line, producing more physically plausible results. Here are some visualizations of the results.
 <table border="0" cellspacing="0" cellpadding="0">
   <tr>
-    <td><img src="https://github.com/user-attachments/assets/fdbc37a1-48df-4754-ac4a-919e245e46ae" width="100%" alt="test_0005"></td>
-    <td><img src="https://github.com/user-attachments/assets/dfa237a2-e2e8-4446-bc5e-a9a290fe165f" width="100%" alt="test_0068"></td>
-    <td><img src="https://github.com/user-attachments/assets/9541719f-b34d-4d69-8ffc-5103d63c8f66" width="100%" alt="test_0093"></td>
-    <td><img src="https://github.com/user-attachments/assets/9c0caa91-4dfe-49d5-80ae-685d5417a9aa" width="100%" alt="test_0037"></td>
+    <td><img src="https://github.com/user-attachments/assets/6d055e64-c65b-4ec9-b3b0-9616e7c310d4" width="100%" alt="test_0005"></td>
+    <td><img src="https://github.com/user-attachments/assets/0ab91d10-9da8-49f9-add1-9c4c60e1fa02" width="100%" alt="test_0068"></td>
+    <td><img src="https://github.com/user-attachments/assets/39488478-2d61-4020-b62f-06d585fa5bd1" width="100%" alt="test_0093"></td>
+    <td><img src="https://github.com/user-attachments/assets/0cae2e0c-063e-4c74-8264-853d3b6cb4a8" width="100%" alt="test_0037"></td>
   </tr>
  
 </table>
@@ -211,15 +208,15 @@ Downdload the content of this [Google Drive](https://drive.google.com/drive/fold
 
 **After downloading, place files as follows:**
 ```
-SkiProject-SportTech/
+├── annotation_preprocessing/
+│   └── raw_annotations/        ← Extract raw_annotations here
 ├── dataset/
-│   ├── frames/           ← Extract frames here
-│   ├── annotations/      ← Extract annotations here
-│   └── *.csv             ← Place CSV files here
+│   ├── frames/                 ← Extract frames here
+│   └── annotations/            ← Extract annotations here
 │
 └── SkiPoseModel/
-    └── results/
-        └── checkpoints/  ← Place model checkpoints here
+│   ├── results/                ← Place results here
+│   └── dataset_preprocessed/   ← Place dataset_preprocessed here
 ```
 
 
