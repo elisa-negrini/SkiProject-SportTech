@@ -3,7 +3,7 @@
 <img width="180" height="812" alt="test_0028" src="https://github.com/user-attachments/assets/cf20c8d1-5103-4fc5-8560-9f9dcc37907d" align="right"/>
 
 
-SkiPoseModel is a deep learning model designed to reconstruct ski positions from human skeletal data. Given a skier's body pose (15 body joints), the model predicts the positions of ski keypoints (8 in total). This is achieved through a transformer-based architecture that learns to infer ski locations based on body joint positions.
+SkiPoseModel is a deep learning model designed to reconstruct ski positions from human skeletal data. Given a skier's body pose (15 body joints), the model predicts the positions of ski keypoints (8 in total). This is achieved through a transformer-based architecture.
 
 ### Model Objective
 
