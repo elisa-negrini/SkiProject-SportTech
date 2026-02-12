@@ -43,10 +43,10 @@ class MetricsComputation:
         self.validity_ranges = {
             'v_style_angle': (10.0, 60.0),
             'body_ski_inclination': (0.0, 40.0),
-            'knee_angle': (100.0, 180.0),
+            'knee_angle': (80.0, 190.0),
             'symmetry_index': (0.0, 30.0),
             'knee_velocity': (50.0, 800.0),
-            'telemark_scissor': (0.0, 0.30),
+            'telemark_scissor': (0.0, 0.90),
             'landing_absorption': (-2.0, 2.0),
         }
         
@@ -536,10 +536,11 @@ class MetricsComputation:
                 
                 if tele_window and tele_window[0] <= f_idx <= tele_window[1]:
                     res['is_landing_phase'] = 1
-                    offset_x, scissor_ratio = self.compute_telemark_metrics(frame_row)
-                    res['telemark_offset_x_raw'] = offset_x
-                    res['telemark_scissor_ratio'] = scissor_ratio
-                
+                    if telemark_flag == 'l':
+                        offset_x, scissor_ratio = self.compute_telemark_metrics(frame_row)
+                        res['telemark_offset_x_raw'] = offset_x
+                        res['telemark_scissor_ratio'] = scissor_ratio
+
                 takeoff_frame = phase_row.get('take_off_frame')
                 if pd.notna(takeoff_frame) and f_idx == int(takeoff_frame):
                     res['takeoff_knee_angle'] = self.compute_takeoff_knee_angle(frame_row)
@@ -570,7 +571,7 @@ class MetricsComputation:
             
             landing_frame = phase_row.get('landing')
             has_landing = pd.notna(landing_frame)
-            if has_landing:
+            if has_landing and telemark_flag != 'f':
                 telemark_quality = self.compute_telemark_quality(jump_frames, int(landing_frame))
                 advanced_metrics.update(telemark_quality)
             else:

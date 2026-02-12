@@ -24,7 +24,7 @@ class TimeSeriesMetricsCalculator:
         
         # Frame rate (30 fps)
         self.fps = 30
-        self.dt = 1.0 / self.fps  # seconds per frame
+        self.dt = 1.0 / self.fps  
         
         self.kpt_map = {
             'head': '1',
@@ -38,11 +38,10 @@ class TimeSeriesMetricsCalculator:
             'l_ski_tip': '16',  'l_ski_tail': '15'
         }
         
-        self.smooth_window = 5  # frames for Savitzky-Golay filter
+        self.smooth_window = 5 
         self.smooth_poly = 2
         
     def load_data(self) -> bool:
-        """Load keypoints, phases, and JP data."""
         
         if not self.keypoints_file.exists():
             print(f"❌ Keypoints file not found: {self.keypoints_file}")
@@ -60,11 +59,9 @@ class TimeSeriesMetricsCalculator:
             self.df_jp = None
             print("⚠️ JP_data.csv not found - scores won't be available")
         
-        # Normalize jump IDs
         self.df_phases['jump_id'] = self.df_phases['jump_id'].apply(self._normalize_jid)
         self.df_kpts['jump_id'] = self.df_kpts['jump_id'].apply(self._normalize_jid)
         
-        # Parse frame numbers from filenames
         def extract_frame_num(fname):
             import re
             match = re.match(r'^(\d+)', str(fname))
@@ -119,7 +116,6 @@ class TimeSeriesMetricsCalculator:
         return np.degrees(np.arccos(cos_angle))
     
     def calculate_vector_angle(self, v1: np.ndarray, v2: np.ndarray) -> float:
-        """Calculate angle between two vectors."""
         norm1 = np.linalg.norm(v1)
         norm2 = np.linalg.norm(v2)
         
