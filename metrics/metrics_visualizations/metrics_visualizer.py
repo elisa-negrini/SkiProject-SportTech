@@ -56,7 +56,6 @@ class MetricsVisualizer:
             if (has_front or has_back) and 'v_style_angle' not in available:
                 available.append('v_style_angle')
             
-            # Check for telemark_scissor: use telemark_scissor_ratio column or landing phase
             has_scissor_ratio = 'telemark_scissor_ratio' in df_jump.columns and df_jump['telemark_scissor_ratio'].notna().any()
             has_landing_phase = 'is_landing_phase' in df_jump.columns and (df_jump['is_landing_phase'] == 1).any()
             
@@ -398,7 +397,6 @@ class MetricsVisualizer:
         Draws full leg skeleton (hip→knee→ankle) with vertical offset line between ankles.
         Color: forward leg (lower ankle) = green, back leg (higher ankle) = orange.
         """
-        # --- Get keypoints ---
         p_hip_r = self.get_kpt_pos(keypoints, 'r_hip', kpt_names)
         p_hip_l = self.get_kpt_pos(keypoints, 'l_hip', kpt_names)
         p_knee_r = self.get_kpt_pos(keypoints, 'r_knee', kpt_names)
@@ -406,7 +404,6 @@ class MetricsVisualizer:
         p_ankle_r = self.get_kpt_pos(keypoints, 'r_ankle', kpt_names)
         p_ankle_l = self.get_kpt_pos(keypoints, 'l_ankle', kpt_names)
 
-        # Transform to crop coordinates
         def to_crop(p):
             return (p - offset) * scale if p is not None else None
 
@@ -417,92 +414,53 @@ class MetricsVisualizer:
         ankle_r = to_crop(p_ankle_r)
         ankle_l = to_crop(p_ankle_l)
 
-        # Need all keypoints for proper calculation
         if any(p is None for p in [hip_r, hip_l, knee_r, knee_l, ankle_r, ankle_l]):
-            # Draw warning
             cv2.putText(img, "Missing keypoints for scissor calculation", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
             return img
 
-        # --- Calculate scissor_mean (frame-by-frame) ---
-        ankle_y_diff = abs(ankle_r[1] - ankle_l[1])  # Vertical distance between ankles
+        ankle_y_diff = abs(ankle_r[1] - ankle_l[1])
         
         avg_hip_y = (hip_r[1] + hip_l[1]) / 2.0
         avg_ankle_y = (ankle_r[1] + ankle_l[1]) / 2.0
-        leg_height = abs(avg_hip_y - avg_ankle_y)  # Leg length
+        leg_height = abs(avg_hip_y - avg_ankle_y)
         
-        if leg_height < 10:  # Too small, invalid
+        if leg_height < 10:
             scissor_ratio = 0.0
         else:
             scissor_ratio = ankle_y_diff / leg_height
         
-        # Clamp to valid range (0.0 to 0.50 max shown)
         scissor_ratio = np.clip(scissor_ratio, 0.0, 0.50)
 
-        # --- Colors: Purple = Right leg, Orange = Left leg (fixed) ---
-        color_r = (226, 43, 138)   # Purple (BGR) - right leg
-        color_l = (0, 165, 255)    # Orange (BGR) - left leg
+        color_r = (226, 43, 138)
+        color_l = (0, 165, 255)
 
-        # --- Draw leg skeletons ---
-        # Right leg (purple)
         cv2.line(img, tuple(hip_r.astype(int)), tuple(knee_r.astype(int)), color_r, 4, cv2.LINE_AA)
         cv2.line(img, tuple(knee_r.astype(int)), tuple(ankle_r.astype(int)), color_r, 4, cv2.LINE_AA)
         
-        # Left leg (orange)
         cv2.line(img, tuple(hip_l.astype(int)), tuple(knee_l.astype(int)), color_l, 4, cv2.LINE_AA)
         cv2.line(img, tuple(knee_l.astype(int)), tuple(ankle_l.astype(int)), color_l, 4, cv2.LINE_AA)
 
-        # --- Draw keypoint circles ---
         for pt, color in [(hip_r, color_r), (hip_l, color_l), 
                           (knee_r, color_r), (knee_l, color_l),
                           (ankle_r, color_r), (ankle_l, color_l)]:
             cv2.circle(img, tuple(pt.astype(int)), 6, color, -1, cv2.LINE_AA)
             cv2.circle(img, tuple(pt.astype(int)), 6, (255, 255, 255), 2, cv2.LINE_AA)
 
-        # --- Draw vertical offset line between ankles (dashed) ---
-        # Line connects the two ankles horizontally at the X position between them
         mid_ankle_x = int((ankle_r[0] + ankle_l[0]) / 2)
         ankle_lower_y = int(min(ankle_r[1], ankle_l[1]))
         ankle_higher_y = int(max(ankle_r[1], ankle_l[1]))
         
-        # Draw vertical dashed line showing the offset
         self.draw_dashed_line(img, 
                               np.array([mid_ankle_x, ankle_lower_y]), 
                               np.array([mid_ankle_x, ankle_higher_y]),
-                              (255, 255, 0), 2, dash_len=8)  # Cyan dashed line
+                              (255, 255, 0), 2, dash_len=8) 
         
-        # Draw horizontal lines at each ankle to show levels
         line_len = 30
         cv2.line(img, (mid_ankle_x - line_len, ankle_lower_y), 
                  (mid_ankle_x + line_len, ankle_lower_y), (255, 255, 0), 2, cv2.LINE_AA)
         cv2.line(img, (mid_ankle_x - line_len, ankle_higher_y), 
                  (mid_ankle_x + line_len, ankle_higher_y), (255, 255, 0), 2, cv2.LINE_AA)
-
-        # --- Display metric value ---
-        h_img, w_img = img.shape[:2]
-        
-        # Main value (ratio) - larger with outline
-        label_main = f"Scissor Ratio: {scissor_ratio:.3f}"
-        cv2.putText(img, label_main, (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(img, label_main, (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2, cv2.LINE_AA)
-        
-        # Percentage - clearer formatting
-        percentage = scissor_ratio * 100
-        label_pct = f"= {percentage:.1f}% of leg height"
-        cv2.putText(img, label_pct, (10, 75),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-        
-        # Frame number - larger and clearer, top right
-        frame_label = f"Frame: {f_idx}"
-        # Get text size for right alignment
-        (text_w, text_h), _ = cv2.getTextSize(frame_label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-        frame_x = w_img - text_w - 15
-        cv2.putText(img, frame_label, (frame_x, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv2.LINE_AA)
-        cv2.putText(img, frame_label, (frame_x, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
 
         return img
     
@@ -520,7 +478,6 @@ class MetricsVisualizer:
         ann_path = self.root / 'dataset' / 'annotations' / sel_jump / 'train' / f'annotations_interpolated_jump{int(sel_jump[2:])}.coco.json'
         frames_dir = self.root / 'dataset' / 'frames' / sel_jump
         save_dir = Path(__file__).parent / 'frame_overlays' / sel_jump / metric_name
-        save_dir.mkdir(parents=True, exist_ok=True)
 
         if not ann_path.exists():
             print(f"❌ Annotations not found for {sel_jump}: {ann_path}")
@@ -532,15 +489,12 @@ class MetricsVisualizer:
         cat_with_kpts = next((c for c in coco.get('categories', []) if 'keypoints' in c), None)
         if cat_with_kpts: kpt_names = cat_with_kpts['keypoints']
         else: return
-                # Initialize telemark_scissor value (used only for telemark_scissor metric)
         telemark_summary_val = 0.0
-                # --- LOGICA SELEZIONE DATAFRAME ---
         if metric_name == 'v_style_angle':
             mask = self.df['v_style_angle_front'].notna() | self.df['v_style_angle_back'].notna()
             df_view = self.df[(self.df['jump_id'] == sel_jump) & mask].copy()
 
         elif metric_name == 'telemark_scissor':
-            # Show 20-30 frames AFTER landing (athlete is in the air before)
             landing_frame = None
             if self.phases_path is not None and self.phases_path.exists():
                 df_phases = pd.read_csv(self.phases_path)
@@ -551,16 +505,14 @@ class MetricsVisualizer:
 
             if landing_frame is not None:
                 start_f = landing_frame
-                end_f = landing_frame + 30
+                end_f = landing_frame + 15
                 df_view = self.df[(self.df['jump_id'] == sel_jump) & 
                                   (self.df['frame_idx'] >= start_f) & 
                                   (self.df['frame_idx'] <= end_f)].copy()
             else:
-                # Fallback: use landing phase flag
                 df_view = self.df[(self.df['jump_id'] == sel_jump) & 
                                   (self.df['is_landing_phase'] == 1)].copy()
 
-            # Read the summary value (one per jump) from metrics_summary_per_jump.csv
             telemark_summary_val = 0.0
             summary_path = self.summary_metrics_path
             if summary_path is not None and summary_path.exists():
@@ -583,20 +535,19 @@ class MetricsVisualizer:
         if df_view.empty:
             if interactive: print("No frames found for this metric.")
             return
+        
+        save_dir.mkdir(parents=True, exist_ok=True)
 
         print(f" -> Processing {sel_jump}: {len(df_view)} frames...")
 
-        # --- COSTRUZIONE MAPPE ---
         ann_map = {a['image_id']: a for a in coco['annotations']}
         img_map = {img['file_name']: img['id'] for img in coco['images']}
         
-        # Mapping Frame Index -> JSON Filename
         frame_lookup = {}
         for fname in img_map.keys():
             import re
             m = re.search(r"(\d+)", fname)
             if m: 
-                # Assumiamo che il primo numero trovato sia il frame index
                 frame_lookup[int(m.group(1))] = fname
 
         indices = list(df_view.index)
@@ -606,7 +557,6 @@ class MetricsVisualizer:
             row = df_view.loc[indices[curr_ptr]]
             f_idx = int(row['frame_idx'])
             
-            # --- RECUPERO VALORE METRICA ---
             val = 0.0
             view_str = ""
             if metric_name == 'v_style_angle':
@@ -617,17 +567,13 @@ class MetricsVisualizer:
             else:
                 val = row.get(metric_name, 0.0)
             
-            # --- FIX: GESTIONE NOME FILE E PATH IMMAGINE ---
             json_fname = frame_lookup.get(f_idx)
             
-            # Creiamo una lista di candidati per il nome del file su disco
             file_candidates = []
             if json_fname: 
-                file_candidates.append(json_fname) # 1. Prova il nome esatto del JSON
+                file_candidates.append(json_fname) 
             
-            # 2. Prova il formato standard a 5 cifre (es. 00413.jpg)
             file_candidates.append(f"{f_idx:05d}.jpg")
-            # 3. Prova il formato semplice (es. 413.jpg)
             file_candidates.append(f"{f_idx}.jpg")
             
             found_img_path = None
@@ -637,24 +583,22 @@ class MetricsVisualizer:
                     break
             
             if not found_img_path: 
-                print(f"⚠️ SKIP: Immagine non trovata per frame {f_idx}. Cercato: {file_candidates}")
+                print(f"⚠️ SKIP: Image not found for frame {f_idx}. Searched: {file_candidates}")
                 curr_ptr += 1; continue
                 
             img = cv2.imread(str(found_img_path))
             if img is None: 
-                print(f"⚠️ SKIP: Impossibile leggere immagine {found_img_path}")
+                print(f"⚠️ SKIP: Unable to read image {found_img_path}")
                 curr_ptr += 1; continue
 
-            # Se non abbiamo trovato il nome nel JSON, non possiamo trovare l'annotazione
             if not json_fname:
-                print(f"⚠️ SKIP: Frame {f_idx} non trovato nel JSON delle annotazioni")
+                print(f"⚠️ SKIP: Frame {f_idx} not found in annotation JSON")
                 curr_ptr += 1; continue
 
-            img_id = img_map.get(json_fname) # Usiamo il nome del JSON per prendere l'ID
+            img_id = img_map.get(json_fname)
             ann = ann_map.get(img_id)
             
             if ann and 'bbox' in ann:
-                # --- VISUALIZZAZIONE (INVARIATA) ---
                 crop_img, offset = self.crop_to_skier(img, ann, margin=0.5)
                 kpts = ann['keypoints']
                 crop_img, scale_factor = self.smart_resize(crop_img, min_side=600)
@@ -683,7 +627,7 @@ class MetricsVisualizer:
                 else:
                     curr_ptr += 1
             else:
-                print(f"⚠️ SKIP: Annotazione o Bbox mancante per frame {f_idx}")
+                print(f"⚠️ SKIP: Annotation or Bbox missing for frame {f_idx}")
                 curr_ptr += 1
         
         if interactive: cv2.destroyAllWindows()
@@ -692,10 +636,7 @@ class MetricsVisualizer:
     def visualize_interactive(self):
         if not self.load_data(): return
 
-        print("\n=== METRICS VISUALIZER ===")
-        print(" 1) Single Jump Mode (Select jump -> then metric)")
-        print(" 2) Batch Mode (Select metric -> Save ALL jumps with that metric)")
-        mode = input("Choice (1 or 2): ").strip()
+        print("\n METRICS VISUALIZER")
 
         jump_ids = self.get_jump_ids()
         
@@ -707,49 +648,31 @@ class MetricsVisualizer:
             'telemark_scissor'
         ]
 
-        if mode == '1':
-            print("\n--- AVAILABLE JUMPS ---")
-            for j in jump_ids: print(f" - {j}")
-            sel_jump = input("\nEnter jump ID (e.g. 5): ").strip()
-            if not sel_jump.startswith("JP"): sel_jump = f"JP{int(sel_jump):04d}"
-            
-            if sel_jump not in jump_ids: print("❌ Jump not found."); return
-            metrics = self.get_available_metrics(sel_jump)
-            if not metrics: print("❌ No metrics available."); return
+        
+        print("\n--- AVAILABLE METRICS (Global) ---")
+        for i, m in enumerate(supported_metrics): print(f" {i+1}) {m}")
+        try:
+            m_idx = int(input("Choose metric number: ")) - 1
+            metric_name = supported_metrics[m_idx]
+        except: print("❌ Invalid selection."); return
 
-            print(f"\n--- METRICS FOR {sel_jump} ---")
-            for i, m in enumerate(metrics): print(f" {i+1}) {m}")
-            try:
-                m_idx = int(input("Choose metric number: ")) - 1
-                metric_name = metrics[m_idx]
-            except: print("❌ Invalid selection."); return
-            self.process_jump(sel_jump, metric_name, interactive=True)
-
-        elif mode == '2':
-            print("\n--- AVAILABLE METRICS (Global) ---")
-            for i, m in enumerate(supported_metrics): print(f" {i+1}) {m}")
-            try:
-                m_idx = int(input("Choose metric number: ")) - 1
-                metric_name = supported_metrics[m_idx]
-            except: print("❌ Invalid selection."); return
-
-            print(f"\n🔍 Finding jumps for '{metric_name}'...")
-            valid_jumps = []
-            for jid in jump_ids:
-                if metric_name in self.get_available_metrics(jid):
-                    valid_jumps.append(jid)
-            
-            if not valid_jumps: print(f"❌ No jumps found for {metric_name}."); return
-            print(f"Found {len(valid_jumps)} jumps.")
-            confirm = input("Start batch processing and saving? (y/n): ").lower()
-            
-            if confirm == 'y':
-                for i, jid in enumerate(valid_jumps):
-                    print(f"[{i+1}/{len(valid_jumps)}] Processing {jid}...")
-                    self.process_jump(jid, metric_name, interactive=False)
-                print("\n Batch processing complete!")
-            else:
-                print("Cancelled.")
+        print(f"\n🔍 Finding jumps for '{metric_name}'...")
+        valid_jumps = []
+        for jid in jump_ids:
+            if metric_name in self.get_available_metrics(jid):
+                valid_jumps.append(jid)
+        
+        if not valid_jumps: print(f"❌ No jumps found for {metric_name}."); return
+        print(f"Found {len(valid_jumps)} jumps.")
+        confirm = input("Start batch processing and saving? (y/n): ").lower()
+        
+        if confirm == 'y':
+            for i, jid in enumerate(valid_jumps):
+                print(f"[{i+1}/{len(valid_jumps)}] Processing {jid}...")
+                self.process_jump(jid, metric_name, interactive=False)
+            print("\n Batch processing complete!")
+        else:
+            print("Cancelled.")
 
 if __name__ == "__main__":
     viz = MetricsVisualizer()

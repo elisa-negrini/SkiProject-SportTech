@@ -15,13 +15,19 @@ __pycache__/
 *.pyd
 
 # Specific File Types/Names to Ignore
-#*.json
+
 *.jpg
-*.png
+dataset/annotations/**/*.png
 *.mp4
 README.dataset.txt
 README.roboflow.txt
 
+
 # Boxes files
 boxes.txt
 boxes_filtered.txt
+
+salti_in_piu/
+temp_jsons/
+
+prove_temp/
