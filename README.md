@@ -1,8 +1,8 @@
 <table><tr><td>
 
-# Ski Jump Pose Estimation 🎿
+# Ski Pose Estimation and Jump Performance Analysis 🎿
 
-> From keypoint annotation to biomechanical metrics and score correlation — building a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
+From keypoint annotation to biomechanical metrics and score correlation — building a new dataset and analysis pipeline for ski jumping pose estimation and performance evaluation.
 
 </td><td>
 
@@ -14,21 +14,21 @@ This project develops an end-to-end system for **2D metrics extraction from ski 
 
 The main objectives are:
 
-1. **Annotate a custom ski jumping dataset** — manually label a 23-keypoint skeleton (body + skis) on competition videos.
-2. **Extract biomechanical metrics** — compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores.
-3. **Train a Ski Pose Estimation model** — use a transformer-based deep learning model to predict ski positions given only the body skeleton.
+1. **Create on of the biggest annotated ski jumping dataset**: manually label a 23-keypoint skeleton (body + skis) on competition videos.
+2. **Extract biomechanical metrics**: compute 2D geometric and dynamic metrics (joint angles, V-style, body-ski inclination, flight stability, landing quality, …) and correlate them with judges' scores and atlhetes distance.
+3. **Train the [Ski Pose Estimation model](https://doi.org/10.1109/STAR62027.2024.10635966)**: use a transformer-based deep learning model to predict ski positions given only the body skeleton.
 
 ### Future Applications
 
-**Fan Engagement Enhancement** — Real-time jump analysis for broadcasts, providing viewers with instant visual feedback on jump technique and performance metrics.
+**Fan Engagement Enhancement**: Real-time jump analysis for broadcasts, providing viewers with instant visual feedback on jump technique and performance metrics.
 
-**Coaching Tool** — Detailed biomechanical feedback for athletes and coaching staff, enabling frame-by-frame technique comparison and improvement tracking.
+**Coaching Tool**: Detailed biomechanical feedback for athletes and coaching staff, enabling frame-by-frame technique comparison and improvement tracking.
 
 ---
 
 
 
-## Objective 1 — Dataset Annotation <img src="https://github.com/user-attachments/assets/cce73566-6d18-4dfe-ada0-f013f580c3bc" width="20" alt="roboflow logo" />
+## Objective 1:  Dataset Annotation <img src="https://github.com/user-attachments/assets/cce73566-6d18-4dfe-ada0-f013f580c3bc" width="20" alt="roboflow logo" />
 
 
 <img width="150" height="200" alt="skeleton" src="https://github.com/user-attachments/assets/3766cb99-825d-42bd-abe5-a2bd0b92ece8" align="right" />
@@ -40,10 +40,10 @@ We annotated **32 ski jumps** from the [Ski-TB Dataset](https://machinelearning.
 
 Each jump video contains approximately **350 frames**. Out of these, around **60 key frames** are manually annotated in Roboflow in COCO format. The remaining frames are then completed through the following automated pipeline:
 
-1. **Extract** — parse jump-specific annotations from the exported COCO file.
-2. **Interpolate** — linearly interpolate keypoints between annotated frames to obtain annotations for all ~350 frames.
-3. **Normalize** — normalize keypoint coordinates relative to the bounding box, making them resolution- and position-independent for downstream metric computation.
-4. **Visualize** — generate annotated images and overlay videos for quality inspection.
+1. **Extract**: parse jump-specific annotations from the exported COCO file.
+2. **Interpolate**: linearly interpolate keypoints between annotated frames to obtain annotations for all ~350 frames.
+3. **Normalize**: normalize keypoint coordinates relative to the bounding box, making them resolution and position independent for downstream metric computation.
+4. **Visualize**, generate annotated images and overlay videos for quality inspection.
 
 ### Folder Structure & Output
 
@@ -62,12 +62,12 @@ dataset/
 ├── annotations/JP00XX/            # Processed COCO annotations + visualization overlays
 ├── keypoints_dataset.csv          # Normalized keypoints for all frames, ready for metrics computation
 ├── jump_phases_SkiTB.csv          # Frame ranges for each jump phase (take-off, v-style, flight, landing, telemark)
-└── JP_data.csv                    # Athlete metadata: name, nationality, scores, judges' evaluations, hill info
+└── JP_data.csv                    # Athlete metadata: name, nationality, scores, judges' evaluations, hills info
 ```
 
 ---
 
-##  Objective 2 — Biomechanical Metrics
+##  Objective 2: Biomechanical Metrics
 
 
 Starting from the annotated and normalized keypoints, we computed a set of **2D biomechanical metrics** to quantitatively describe each jump. These metrics account for the inherent limitations of a 2D perspective (e.g., foreshortening, camera angle variability) by favoring dynamic measures (velocities, standard deviations) over static absolute angles where possible.
@@ -116,24 +116,24 @@ metrics/
 ├── data_quality/                  # Outlier detection and data validation
 ├── metrics_visualizations/        # Overlay visualizations on frames
 ├── profile_analysis/              # Top vs. flop athlete comparisons
-└── style_penalty_model/           # ML model predicting style penalties
+└── style_penalty_model/           # Ridge regression model predicting style penalties
 ```
 
 ### ⚠️ Disclaimer on Results
 
 We are aware that some of the results obtained from the metrics and correlation analyses are **not all statistically significant**, for two main reasons:
 
-1. **Small dataset** — with only 32 annotated jumps, the sample size limits the statistical power of any analysis.
-2. **Low performance heterogeneity** — all jumps in the dataset come from top-level international FIS World Cup competitions. Since all athletes perform at a very high level, it is inherently difficult to distinguish between "good" and "less good" performances, making predictions and meaningful analyses harder. A more heterogeneous dataset (e.g., including amateur-level jumps) would likely yield more significant and differentiated results.
+1. **Small dataset**: with only 32 annotated jumps, the sample size limits the statistical power of any analysis.
+2. **Low performance heterogeneity**: all jumps in the dataset come from top-level international FIS World Cup competitions. Since all athletes perform at a very high level, it is inherently difficult to distinguish between "good" and "less good" performances, making predictions and meaningful analyses harder. A more heterogeneous dataset (e.g., including amateur-level jumps) would likely yield more significant and differentiated results.
 
 ---
 
-##  Objective 3 — Ski Pose Estimation Model
+##  Objective 3: Ski Pose Estimation Model
 
 
-The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [Ski Pose Estimation paper](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10635966&casa_token=ubQtkCGjylwAAAAA:BqQcSimZXVc4v0CQd73N5M5WocdADPdmWoYALUHBNLVUCStoaP3Lljc3aWbkBNXplPMHIzJ7https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10635966&casa_token=ubQtkCGjylwAAAAA:BqQcSimZXVc4v0CQd73N5M5WocdADPdmWoYALUHBNLVUCStoaP3Lljc3aWbkBNXplPMHIzJ7). Its goal is to **predict the position of the 8 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
+The **SkiPoseModel** is a transformer-based deep learning model originally introduced in [this paper](https://doi.org/10.1109/STAR62027.2024.10635966). Its goal is to **predict the position of the 8 ski keypoints given only the body skeleton** of the jumper (with ski joints masked during training).
 
-We adapted the model to our custom 23-keypoint dataset and trained it on a total of 11,042 samples (7,729 train, 1,656 validation, 1,657 test).
+We adapted the model to our custom 23-keypoint dataset and trained it on a total of 9798 samples (6858 train, 1470 validation, 1470 test).
 
 
 ### Prediction & Post-Processing
@@ -279,8 +279,8 @@ python metrics/style_penalty_model/style_penalty_model.py
 
 The dashboard provides two main screens:
 
-- **Gallery Explorer** — browse and filter the dataset by jump, athlete, and phase; explore annotated frames with skeleton overlays.
-- **Metric Analysis** — visualize metrics filtered by athlete and metric type, with summary statistics.
+- **Gallery Explorer**: browse and filter the dataset by jump, athlete, and phase; explore annotated frames with skeleton overlays.
+- **Metric Analysis**: visualize metrics filtered by athlete and metric type, with summary statistics.
 
 ```bash
 streamlit run dashboard/Dashboard.py
@@ -292,6 +292,17 @@ streamlit run dashboard/Dashboard.py
 
 ---
 
+## ⚠️ Main Limitations
+
+
+
+---
+
+## Future Work
+
+
+
+---
 
 ## 👥 Team
 
@@ -303,7 +314,7 @@ streamlit run dashboard/Dashboard.py
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **[Ski-TB Dataset](https://cvlab.epfl.ch/research/datasets/ski-tb/)** — Base dataset for ski jumping videos
 - **[Roboflow](https://roboflow.com/)** — Annotation platform
