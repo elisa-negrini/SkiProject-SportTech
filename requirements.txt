@@ -1,25 +1,29 @@
-opencv-python
-numpy
-matplotlib
-tqdm
-einops
-pytorch_lightning
-wandb
-torch
-torchvision
-absl-py
-natsort
-pandas
-streamlit
-seaborn
-
-# Visualization
-seaborn
-Pillow
+# Core Dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+Pillow>=10.0.0
 
 # ML & Statistics
-scikit-learn
-scipy
+scikit-learn>=1.3.0
+scipy>=1.11.0
 
 # Time-series clustering
-tslearn
+tslearn>=0.6.0
+
+# Deep Learning (compatibility)
+torch>=2.0.0
+torchvision>=0.15.0
+pytorch_lightning>=2.0.0
+einops>=0.7.0
+wandb>=0.15.0
+
+# Utilities
+tqdm>=4.65.0
+absl-py>=2.0.0
+natsort>=8.4.0
+
+# Dashboard
+streamlit>=1.28.0
