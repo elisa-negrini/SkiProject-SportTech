@@ -45,10 +45,10 @@ python annotation_preprocessing/main.py
 ```
 
 **4.** The script will interactively ask for:
-- **Jump range** — e.g. `10-15` or `6`
-- **Interpolation** — whether to interpolate between annotated frames
-- **Visualization** — whether to generate overlay video
-- **Normalization** — whether to normalize keypoints
+- **Jump range**: e.g. `10-15` or `6`
+- **Interpolation**: whether to interpolate between annotated frames
+- **Visualization**: whether to generate overlay video
+- **Normalization**: whether to normalize keypoints
 
 ---
 
